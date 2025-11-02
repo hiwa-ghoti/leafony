@@ -1,33 +1,36 @@
 //=====================================================================
-//  Leafony Platform sample sketch
-//     Application  : BLE 4-Sensers demo
-//     Processor    : STM32L452RE (Nucleo-64/Nucleo L452RE)
+//  Leafony プラットフォーム サンプルスケッチ
+//     アプリケーション: BLE 4センサー デモ
+//     プロセッサ    : STM32L452RE (Nucleo-64/Nucleo L452RE)
 //     Arduino IDE  : 1.8.13
 //     STM32 Core   : Ver1.9.0
 //
-//     Leaf configuration
+//     Leaf 構成
 //       (1) AC02 BLE Sugar
 //       (2) AI01 4-Sensors
 //       (3) AP03 STM32 MCU
 //       (4) AZ01 USB
 //
-//    (c) 2021 LEAFONY SYSTEMS Co., Ltd
-//    Released under the MIT license
+//    (c) 2021 LEAFONY SYSTEMS 合同会社
+//    ライセンス: MIT ライセンス
 //    https://opensource.org/licenses/MIT
 //
-//      Rev.00 2021/04/01 First release
+//      Rev.00 2021/04/01 初版
 //=====================================================================
 //---------------------------------------------------------------------
-// difinition
+// 定義セクション
 //---------------------------------------------------------------------
+#include <Arduino.h>                        // Arduino 基本
 #include <SoftwareSerial.h>                 // Software UART
 #include <Wire.h>                           // I2C
-
+#include <stdio.h>
+#include <TinyGPSPlus.h>                     // GPS
 #include <Adafruit_LIS3DH.h>                // 3-axis accelerometer
 #include <Adafruit_HTS221.h>                // humidity and temperature sensor
 #include <ClosedCube_OPT3001.h>             // Ambient Light Sensor
 #include "TBGLib.h"                         // BLE
 #include <ST7032.h>                         // LCD
+#include <vector>
 
 // --- 関数プロトタイプ宣言 ---
 void i2c_write_byte(uint8_t addr, uint8_t reg, uint8_t data);
@@ -53,39 +56,38 @@ void my_rsp_system_get_bt_address(const struct ble_msg_system_get_bt_address_rsp
 
 
 //===============================================
-// BLE Unique Name (Local device name)
-// Up to 16 characters (ASCII code)
+// BLE ローカルデバイス名 (Unique Name)
+// 最大 16 文字（ASCII）
 //===============================================
 //                     |1234567890123456|
-//ローカルデバイス名を設定
+// ローカルデバイス名を設定
 String strDeviceName = "Leafony_AC02";
 
 //===============================================
-// Output to serial monitor
-//      #define SERIAL_MONITOR = With output
-//    //#define SERIAL_MONITOR = Without output (Comment out)
+// シリアルモニタへ出力する設定
+//      #define SERIAL_MONITOR でシリアル出力を有効化
+//    //コメントアウトするとシリアル出力が無効になります
 //===============================================
-// 事前定義存在定義(#ifdef)で用いる
+// 条件付きコンパイルでシリアル出力を切り替えます (下のマクロを定義/コメントアウトしてください)
 //#define ← マクロを定義？
 #define SERIAL_MONITOR
 
 //===============================================
-// Debug output to serial monitor
-//      #define DEBUG = With output
-//    //#define DEBUG = Without output (Comment out)
+// デバッグ出力（シリアルモニタ）
+//      #define DEBUG でデバッグログを有効化
+//    //コメントアウトするとデバッグログは無効になります
 //===============================================
 //#define DEBUG
 
 //-----------------------------------------------
-// Setting the transmission interval
-//  SEND_INTERVAL  :transmission interval (Set the interval for sending sensor data in 1 second increments.)
+// 送信間隔の設定
+//  SEND_INTERVAL : センサー値（またはダミー日時）を送信する間隔（秒単位）
 //-----------------------------------------------
-//送信間隔を1秒単位で設定するマクロ
-//1秒に1回送信
+// ここでは 1 秒ごとに送信する設定
 #define SEND_INTERVAL   (1)                 // 1s
 
 //-----------------------------------------------
-// IO Pin List
+// IO ピン一覧
 //-----------------------------------------------
 //  D0  PA3  (UART2_RXD)
 //  D1  PA2  (UART2_TXD)
@@ -111,27 +113,16 @@ String strDeviceName = "Leafony_AC02";
 //  A5  PC0
 
 //-----------------------------------------------
-// IO pin name definition
-// Define it according to the leaf to be connected.
+// IO ピン名の定義
+// 接続する Leaf に合わせて定義を調整してください。
 //-----------------------------------------------
 #define BLE_WAKEUP      PB12                // D7   PB12
 #define BLE_RX          PA1                 // [A2] PA1
 #define BLE_TX          PA0                 // [A1] PA0
 
-//-----------------------------------------------
-// Define constants to be used in the program
-//-----------------------------------------------
 //------------------------------
-// I2C address
-//------------------------------
-#define LIS2DH_ADDRESS          0x19        // Accelerometer (SD0/SA0 pin = VCC)
-#define OPT3001_ADDRESS         0x45        // Ambient Light Sensor (ADDR pin = VCC)
-#define LCD_I2C_EXPANDER_ADDR   0x1A        // LCD I2C Expander
-#define BATT_ADC_ADDR           0x50        // Battery ADC
-
-//------------------------------
-// Loop interval
-// Timer interrupt interval (ms)
+// ループ間隔
+// タイマー割り込み間隔（ミリ秒単位）
 //------------------------------
 #define LOOP_INTERVAL 125000                // 125000us = 125ms interval
 
@@ -148,36 +139,50 @@ String strDeviceName = "Leafony_AC02";
 //---------------------------------------------------------------------
 // object
 //---------------------------------------------------------------------
-//------------------------------
-// LCD
-//------------------------------
-  ST7032 lcd;
 
 //------------------------------
-// Sensor
+// GPS
 //------------------------------
-Adafruit_LIS3DH accel = Adafruit_LIS3DH();
-ClosedCube_OPT3001 light;
+SoftwareSerial gpsSerial(A1, A2); // RX, TX
+// GPSデータ格納用構造体
+struct GPSData {
+  double latitude;
+  double longitude;
+  uint16_t year; // 西暦
+  uint8_t month;
+  uint8_t day;
+  uint8_t hour;
+  uint8_t minute;
+  uint8_t second;
+  double setDate;
+};
+struct sampleData {
+  char* latitude;
+  char* longitude;
+  char* setDate;
+};
+TinyGPSPlus gps;
+GPSData latestGPS;
+std::vector<sampleData> gpsLog;  // 可変長配列（ログ）: std::vector を使用して順次 push_back する
+unsigned long previousMillis = 0;  // 前回実行した時刻
+const unsigned long interval = 5000; // 5秒（5000ミリ秒）
+
 
 //------------------------------
 // BLE
 //------------------------------
+//STM32版ArduinoのHardwareSerialコンストラクタ
+//BLEモジュールとUART接続のためのシリアルポートオブジェクトを作成
+//その時BLE_RX(PA1), BLE_TX(PA0)ピンを使用
 HardwareSerial Serialble(BLE_RX, BLE_TX);
+//ble112はBGLib(TBGlib)のインスタンス
+//Serialbleを使ってBLEモジュールへコマンド送信/応答受信/イベント処理を行う
 BGLib ble112((HardwareSerial *)&Serialble, 0, 0 );
-
-//---------------------------------------------------------------------
-// Define variables to be used in the program
-//---------------------------------------------------------------------
-//------------------------------
-// LCD
-//------------------------------
-bool dispLCD = 0;                           // Set to 1 to display on LCD.
-int8_t lcdSendCount = 0;
 
 //------------------------------
 // Loop counter
 //------------------------------
-uint8_t iLoop1s = 0;
+uint8_t iLoop5s = 0;
 uint8_t iSendCounter = 0;
 
 //------------------------------
@@ -191,43 +196,6 @@ bool event1s = false;
 volatile bool bInterval = false;
 
 //------------------------------
-// LIS2DH : Accelerometer
-//------------------------------
-float dataX_g, dataY_g, dataZ_g;
-float dataTilt = 0;
-uint8_t dataPips;
-
-//------------------------------
-// HTS221 : Humidity and Temperature sensor
-//------------------------------
-Adafruit_HTS221 hts;
-
-float dataTemp = 0;
-float dataHumid = 0;
-
-//--------------------
-// Data for two-point correction
-//--------------------
-// Temperature correction data 0
-float TL0 = 25.0;     // 4-Sensors Temperature measurement value
-float TM0 = 25.0;     // Thermometer and other measurements value
-// Temperature correction data 1
-float TL1 = 40.0;     // 4-Sensors Temperature measurement value
-float TM1 = 40.0;     // Thermometer and other measurements value
-
-// Humidity correction data 0
-float HL0 = 60.0;     // 4-Sensors Humidity measurement value
-float HM0 = 60.0;     // Hygrometer and other measurements value
-// Humidity correction data 1
-float HL1 = 80.0;     // 4-Sensors Humidity measurement value
-float HM1 = 80.0;     // Hygrometer and other measurements value
-
-//------------------------------
-// OPT3001 : Ambient Light Sensor
-//------------------------------
-float dataLight;
-
-//------------------------------
 // BLE
 //------------------------------
 bool bBLEconnect = false;
@@ -238,71 +206,49 @@ volatile uint8_t ble_state = BLE_STATE_STANDBY;
 volatile uint8_t ble_encrypted = 0;         // 0 = not encrypted, otherwise = encrypted
 volatile uint8_t ble_bonding = 0xFF;        // 0xFF = no bonding, otherwise = bonding handle
 
-//------------------------------
-// Battery
-//------------------------------
-float dataBatt = 0;
+// ダミー日時カウンタ（センサーの代わりに送信する日時）
+uint16_t dummy_year = 2025;
+uint8_t dummy_month = 1;
+uint8_t dummy_day = 1;
+uint8_t dummy_hour = 0;
+uint8_t dummy_minute = 0;
+uint8_t dummy_second = 0;
 
 //=====================================================================
 // setup
 //=====================================================================
 void setup(){
-//  delay(1000);
-
   Serial.begin(115200);     // UART 115200bps
-  Wire.begin();             // I2C 100kHz
-//SERIAL_MONITORがあるかどうかで分岐
-#ifdef SERIAL_MONITOR
-    Serial.println(F(""));
-    Serial.println(F("========================================="));
-    Serial.println(F("setup start"));
-#endif
 
-  if (dispLCD==1){
-    i2c_write_byte(LCD_I2C_EXPANDER_ADDR, 0x03, 0xFE);
-    i2c_write_byte(LCD_I2C_EXPANDER_ADDR, 0x01, 0x01);      // LCD power ON
-    // LCD設定
-    lcd.begin(8, 2);
-    lcd.setContrast(30);
-    lcd.clear();
-    lcd.print("NOW");
-    lcd.setCursor(0, 1);
-    lcd.print("BOOTING!");
-  }
+  gpsLog.push_back({"0.0", "0.0", "20251031185201"});
+  gpsLog.push_back({"35.676676", "139.764936", "20251031185201"});
+  gpsLog.push_back({"35.676672", "139.597820", "20251031185206"});
 
-  setupPort();
-  setupSensor();
-  setupBLE();
+  Wire.begin();             // I2C初期化（各センサー処理に必要）おそらく加速度センサー処理に使用
+  setupPort();              // BLEのスリープ状態解除
+  setupBLE();               // BLE初期化
 
   ble112.ble_cmd_system_get_bt_address();
   while (ble112.checkActivity(1000));
 
-  setupTimerInt();                            // Timer inverval start
+  // STM32のハードウェアタイマーを使って125msで割り込みを発生させる
+  // ソフト側で一秒周期を安定して行うために必要
+  setupTimerInt();                           // タイマー割り込み開始
 
-#ifdef SERIAL_MONITOR
-    Serial.println(F(""));
-    Serial.println("=========================================");
-    Serial.println(F("loop start"));
-    Serial.println(F(""));
-#endif
 }
 
 //-----------------------------------------------
-// IO pin input/output settings
-// Configure the settings according to the leaf to be connected.
+// IO ピンの入出力設定
+// 接続する Leafony に合わせて設定を行ってください
 //-----------------------------------------------
 void setupPort(){
+  //BLE_WAKEUP(PB12)を出力ピンとして設定
   pinMode(BLE_WAKEUP, OUTPUT);           // [D7] : BLE Wakeup/Sleep
+  //その出力ピン(BLE_WAKEUP)をHIGHに設定してBLEモジュールを起動
   digitalWrite(BLE_WAKEUP, HIGH);        // BLE Wakeup
 }
 
-//=====================================================================
-// Interrupt
-//=====================================================================
-//-----------------------------------------------
-// Timer interrupt (interval=125ms, int=overflow)
-// Timer interrupt setting for main loop
-//-----------------------------------------------
+// タイマー割り込みのセットアップ（125ms 間隔）
 void setupTimerInt(){
   HardwareTimer *timer2 = new HardwareTimer (TIM2);
 
@@ -311,90 +257,26 @@ void setupTimerInt(){
   timer2->resume();
 }
 
-//---------------------------------------------------------------------
-// Initial settings for each device
-//---------------------------------------------------------------------
-//------------------------------
-// Sensor
-//------------------------------
-void setupSensor(){
-  //----------------------------
-  // LIS2DH (accelerometer)
-  //----------------------------
-  accel.begin(LIS2DH_ADDRESS);
-
-  accel.setClick(0, 0);                      // Disable Interrupt
-  accel.setRange(LIS3DH_RANGE_2_G);          // Full scale +/- 2G
-  accel.setDataRate(LIS3DH_DATARATE_10_HZ);  // Data rate = 10Hz
-
-  //----------------------------
-  // HTS221 (temperature / humidity)
-  //----------------------------
-  while (!hts.begin_I2C()) {
-#ifdef SERIAL_MONITOR
-    Serial.println("Failed to find HTS221");
-#endif
-    delay(10);
-  }
-
-  //----------------------------
-  // OPT3001 (light)
-  //----------------------------
-  OPT3001_Config newConfig;
-  OPT3001_ErrorCode errorConfig;
-
-  light.begin(OPT3001_ADDRESS);
-
-  newConfig.RangeNumber = B1100;                    // automatic full scale
-  newConfig.ConvertionTime = B1;                    // convertion time = 800ms
-  newConfig.ModeOfConversionOperation = B11;        // continous conversion
-  newConfig.Latch = B0;                             // hysteresis-style
-
-  errorConfig = light.writeConfig(newConfig);
-
-  if(errorConfig != NO_ERROR){
-    errorConfig = light.writeConfig(newConfig);     // retry
-  }
-}
 //====================================================================
 // Loop
-//=====================================================================
-//---------------------------------------------------------------------
-// Main loop
-//---------------------------------------------------------------------
+//====================================================================
 void loop() {
-  //-----------------------------------------------------
-  // Timer interval Loop once in 125ms
-  //-----------------------------------------------------
-  if (bInterval == true){
-     bInterval = false;
-
-    //--------------------------------------------
-    loopCounter();                    // loop counter
-    //--------------------------------------------
-    // Run once in 1s
-    //--------------------------------------------
-    if(event1s == true){
-      event1s = false;
-      loopSensor();                   // sensor read
-      bt_sendData();                  // Data send
-    }
-  }
-  loopBleRcv();
+    bt_sendData();
+    
+    loopBleRcv();
 }
 //---------------------------------------------------------------------
-// Counter
-// Count the number of loops in the main loop and turn on sensor data acquisition
-// and BLE transmission at 1-second intervals
+// ループカウンタ
+// メインループのループ回数をカウントし、5秒間隔でセンサー取得やBLE送信のフラグを立てます
 //---------------------------------------------------------------------
 void loopCounter(){
-  iLoop1s += 1;
+  iLoop5s += 1;
 
   //--------------------
-  // 1s period
+  // 5s period
   //--------------------
-  if (iLoop1s >=  8){                 // 125ms x 8 = 1s
-    iLoop1s = 0;
+  if (iLoop5s >=  40){                 // 125ms x 40 = 5s
+    iLoop5s = 0;
 
     iSendCounter  += 1;
     if (iSendCounter >= SEND_INTERVAL){
@@ -404,272 +286,93 @@ void loopCounter(){
   }
 }
 
-//---------------------------------------------------------------------
-// Sensor
-// When sensor data acquisition is ON, data is acquired from each sensor
-// Serial output of measured values and calculation results when console output is ON
-//---------------------------------------------------------------------
-void loopSensor(){
-  double temp_mv;
-    //-------------------------
-    // LIS2DH
-    // Data acquisition for 3-axis sensors
-    //-------------------------
-    accel.read();
-    dataX_g = accel.x_g;    // X-axis
-    dataY_g = accel.y_g;    // Y-axis
-    dataZ_g = accel.z_g;    // Z-axis
+void setDate(){
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis; // 時刻を更新
+  // GPS の値を構造体に格納（数値で保持）
+    latestGPS.latitude = gps.location.lat();
+    latestGPS.longitude = gps.location.lng();
+    latestGPS.year = (uint16_t)gps.date.year();
+    latestGPS.month = (uint8_t)gps.date.month();
+    latestGPS.day = (uint8_t)gps.date.day();
+    latestGPS.hour = (uint8_t)gps.time.hour();
+    latestGPS.minute = (uint8_t)gps.time.minute();
+    latestGPS.second = (uint8_t)gps.time.second();
 
-    if(dataZ_g >= 1.0){
-      dataZ_g = 1.00;
-    } else if (dataZ_g <= -1.0){
-      dataZ_g = -1.00;
-    }
+    // 可変長ログに追加
+    // gpsLog.push_back(latestGPS);
+    // 日時をフォーマットして Serial に表示
+    char dateBuf[32];
+    snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
+             latestGPS.year,
+             latestGPS.month,
+             latestGPS.day,
+             latestGPS.hour,
+             latestGPS.minute,
+             latestGPS.second);
 
-    dataTilt = acos(dataZ_g) / PI * 180;
-
-    // Calculate the position of the dice.
-    // For each eye, the sensor takes the following values
-    //     X  Y  Z
-    //  1  0  0  1
-    //  2  0  1  0
-    //  3 -1  0  0
-    //  4  1  0  0
-    //  5  0 -1  0
-    //  6  0  0 -1
-    if ((-0.5 <= dataX_g && dataX_g < 0.5) && (-0.5 <= dataY_g && dataY_g < 0.5) && (0.5 <= dataZ_g)){
-      dataPips = 1;
-    }
-    else if ((-0.5 <= dataX_g && dataX_g < 0.5) && (0.5 <= dataY_g) && (-0.5 <= dataZ_g && dataZ_g < 0.5)){
-      dataPips = 2;
-    }
-    else if ((dataX_g < -0.5) && (-0.5 <= dataY_g && dataY_g < 0.5) && (-0.5 <= dataZ_g && dataZ_g < 0.5)){
-      dataPips = 3;
-    }
-    else if ((0.5 <= dataX_g) && (-0.5 <= dataY_g && dataY_g < 0.5) && (-0.5 <= dataZ_g && dataZ_g < 0.5)){
-      dataPips = 4;
-    }
-    else if ((-0.5 <= dataX_g && dataX_g < 0.5) && (dataY_g < -0.5) && (-0.5 <= dataZ_g && dataZ_g < 0.5)){
-      dataPips = 5;
-    }
-    else if ((-0.5 <= dataX_g && dataX_g < 0.5) && (-0.5 <= dataY_g && dataY_g < 0.5) && (dataZ_g < -0.5)){
-      dataPips = 6;
-    }
-//    else{
-//      dataPips = 0;
-//    }
-
-    //-------------------------
-    // HTS221
-    // Temperature and humidity sensor data acquisition
-    //-------------------------
-    sensors_event_t humidity;
-    sensors_event_t temp;
-
-    hts.getEvent(&humidity, &temp);             // populate temp and humidity objects with fresh data
-    dataTemp = temp.temperature;
-    dataHumid =humidity.relative_humidity;
-
-    //-------------------------
-    // Two-point correction for temperature and humidity
-    //-------------------------
-    dataTemp=TM0+(TM1-TM0)*(dataTemp-TL0)/(TL1-TL0);      // Temperature correction
-    dataHumid=HM0+(HM1-HM0)*(dataHumid-HL0)/(HL1-HL0);    // Humidity correction
-
-    //-------------------------
-    // OPT3001
-    // Illuminance sensor data acquisition
-    //-------------------------
-    OPT3001 result = light.readResult();
-
-    if(result.error == NO_ERROR){
-      dataLight = result.lux;
-    }
-
-  //-------------------------
-  // ADC081C027（ADC)
-  // Battery leaf battery voltage acquisition
-  //-------------------------
-  uint8_t adcVal1 = 0;
-  uint8_t adcVal2 = 0;
-
-  Wire.beginTransmission(BATT_ADC_ADDR);
-  Wire.write(0x00);
-  Wire.endTransmission(false);
-  Wire.requestFrom(BATT_ADC_ADDR,2);
-  adcVal1 = Wire.read();
-  adcVal2 = Wire.read();
-
-  if (adcVal1 == 0xff && adcVal2 == 0xff) {
-    // If the measured value is FF, the battery leaf is not connected.
-    adcVal1 = adcVal2 = 0;
+    // 位置と日時を表示（位置は小数点6桁で表示）
+    Serial.println(dateBuf);
+    Serial.println(latestGPS.latitude, 6);
+    Serial.println(latestGPS.longitude, 6);
+  } else {
+    latestGPS.latitude = 0.0;
+    latestGPS.longitude = 0.0;
+    latestGPS.year = 0;
+    latestGPS.month = 0;
+    latestGPS.day = 0;
+    latestGPS.hour = 0;
+    latestGPS.minute = 0;
+    latestGPS.second = 0;
   }
-
-  // Voltage calculation :　ADC　* ((Reference voltage(3.3V)/ ADC resolution(256)) * Divided voltage ratio(2)
-  temp_mv = ((double)((adcVal1 << 4) | (adcVal2 >> 4)) * 3300 * 2) / 256;
-  dataBatt = (float)(temp_mv / 1000);
 }
 
 //---------------------------------------------------------------------
-// Send sensor data
-// Convert sensor data into a string to be sent to Central and send the data to BLE Leaf.
+// ダミー日時を BLE で送信
+// センサー取得/送信処理を無効化し、ダミーの日時（YYYYMMDDHHMMSS）を送信します。
 //---------------------------------------------------------------------
 void bt_sendData(){
-  float value;
-  char temp[7], humid[7], light[7], tilt[7],battVolt[7], pips[7];
+  char * setDate , * latitude , * longitude;
   char sendData[40];
   uint8 sendLen;
-
-  //-------------------------
-  // Convert sensor data to strings
-  // dtostrf(Number to be converted, number of characters to be converted, number of decimal places, where to store the converted characters);
-  // If the number of characters to be converted is set to -, the converted characters will be left-justified; if +, they will be right-justified.
-  //-------------------------
-  //-------------------------
-  // Temperature (4Byte)
-  //-------------------------
-  value = dataTemp;
-  if(value >= 100){
-    value = 99.9;
-  }
-  else if(value <= -10){
-    value = -9.9;
-  }
-  dtostrf(value,4,1,temp);
-
-  //-------------------------
-  // Humidity (4Byte)
-  //-------------------------
-  value = dataHumid;
-  dtostrf(value,4,1,humid);
-
-  //-------------------------
-  // Ambient Light (5Byte)
-  //-------------------------
-  value = dataLight;
-  if(value >= 100000){
-    value = 99999;
-  }
-  dtostrf(value,5,0,light);
-
-  //-------------------------
-  // Tilt (4Byte)
-  //-------------------------
-  value = dataTilt;
-  if(value < 3){
-    value = 0;
-  }
-  dtostrf(value,4,0,tilt);
-
-  //-------------------------
-  // dice
-  //-------------------------
- value = dataPips;
-  if (value > 6){
-    value = 0;
-  }
-  dtostrf(value,4,0,pips);
-  
-  //-------------------------
-  // Battery Voltage (4Byte)
-  //-------------------------
-  value = dataBatt;
-
-  if (value >= 10){
-   value = 9.99;
-  }
-  dtostrf(value, 4, 2, battVolt);
-
-  //-------------------------
-  //無駄な末尾のデータを削除
-  //-------------------------
-  trim(temp);
-  trim(humid);
-  trim(light);
-  trim(tilt);
-  trim(battVolt);
-  trim(pips);
-
-  lcd.clear();
-
-  if (dispLCD==1){
-    switch (lcdSendCount){
-      case 0:                 // BLE not connected
-        lcd.print("Waiting");
-        lcd.setCursor(0, 1);
-        lcd.print("connect");
-        break;
-      case 1:                 // Tmp XX.X [degC]
-        lcd.print("Temp");
-        lcd.setCursor(0, 1);
-        lcd.print( String(temp) +" C");
-        break;
-      case 2:                 // Hum xx.x [%]
-        lcd.print("Humidity");
-        lcd.setCursor(0, 1);
-        lcd.print( String(humid) +" %");
-        break;
-      case 3:                 // Lum XXXXX [lx]
-        lcd.print("Luminous");
-        lcd.setCursor(0, 1);
-        lcd.print( String(light) +" lx");
-        break;
-      case 4:                 // Ang XXXX [arc deg]
-        lcd.print("Angle");
-        lcd.setCursor(0, 1);
-        lcd.print( String(tilt) +" deg");
-        break;
-      case 5:                 // Bat X.XX [V]
-        lcd.print("Battery");
-        lcd.setCursor(0, 1);
-        lcd.print( String(battVolt) +" V");
-        break;
-      default:
-        break;
-    }
-    if (lcdSendCount < 5){
-      lcdSendCount++;
-    }
-    else{
-        if( bBLEsendData == true ){                           // Start from 1 during BLE transmission.
-          lcdSendCount = 1;
-        }
-        else{
-          lcdSendCount = 0;
-        }
-    }
-  }
-
-  //-------------------------
-  // BLE Send Data
-  //-------------------------
-  if( bBLEsendData == true ){                                 // BLE transmission
-    // Format for WebBluetooth application
-    sendLen = sprintf(sendData, "%04s,%04s,%04s,%04s,%04d\n", temp, humid, light, tilt, pips);
-    Serial.println(sendData);
-    // Send to BLE device
-    ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)sendData );
-    while (ble112.checkActivity(1000));
-  }
-
+  String value;
   
 
-    //-------------------------
-    // Serial monitor display
-    //-------------------------
-#ifdef SERIAL_MONITOR
-// To display on multiple lines
-/*
-  Serial.println("--- sensor data ---");    
-  Serial.println("  Tmp[degC]     = " + String(dataTemp));
-  Serial.println("  Hum[%]        = " + String(dataHumid));
-  Serial.println("  Lum[lx]       = " + String(dataLight));
-  Serial.println("  Ang[arc deg]  = " + String(dataTilt));
-  Serial.println("  Bat[V]        = " + String(dataBatt));
-*/
-// To display on a single line
-  Serial.println("SensorData: Temp=" + String(temp) + ", Humid=" + String(humid) + ", Light=" + String(light) + ", Tilt=" + String(tilt) + ", Vbat=" + String(battVolt) + ", Dice=" + String(pips));
-#endif
+  
+  for(int i = 0; i < gpsLog.size(); i++) {
+  setDate = gpsLog[i].setDate;
+  latitude = gpsLog[i].latitude;
+  longitude = gpsLog[i].longitude;
+  Serial.println("GPS Log Entry:");
+  // 送るデータをストリング型に変換
+  //データをトリム
+  trim(setDate);
+  trim(latitude);
+  trim(longitude);
+
+  sendLen = strlen(setDate);
+
+  ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)sendData );
+  while (ble112.checkActivity(1000));
+
+  Serial.println("Sent Data:");
+  Serial.println(sendData);
+
+  sendLen = strlen(latitude);
+
+  ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)sendData );
+  while (ble112.checkActivity(1000));
+
+  Serial.println(sendData);
+
+  sendLen = strlen(longitude);
+  ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)sendData );
+  while (ble112.checkActivity(1000));
+
+  Serial.println(sendData);
+  }
+  char dateBuf[32];
 }
 //====================================================================
 
@@ -677,10 +380,9 @@ void bt_sendData(){
 // Interrupt
 //==============================================
 
-//----------------------------------------------
-// Timer INT
-// Timer interrupt function
-//----------------------------------------------
+//-----------------------------------------------
+// BLE からデータが送られてきた場合に受信して処理を行う
+//-----------------------------------------------
 //void intTimer(HardwareTimer*){      // STM32 Core 1.7.0
 void intTimer(void){                  // STM32 Core 1.9.0
   bInterval = true;
@@ -842,26 +544,26 @@ void loopBleRcv(void){
 }
 
 //=====================================================================
-// INTERNAL BGLIB CLASS CALLBACK FUNCTIONS
+// 内部 BGLib クラス コールバック関数群
 //=====================================================================
 //-----------------------------------------------
-// called when the module begins sending a command
+// モジュールがコマンド送信を開始したときに呼ばれる
 void onBusy() {
-    // turn LED on when we're busy
-    //digitalWrite( D13_LED, HIGH );
+  // 処理中は（必要に応じて）LED を点灯する処理をここに書けます
+  //digitalWrite( D13_LED, HIGH );
 }
 
 //-----------------------------------------------
-// called when the module receives a complete response or "system_boot" event
+// モジュールが応答や "system_boot" イベントを受け取ったときに呼ばれる
 void onIdle() {
-    // turn LED off when we're no longer busy
-    //digitalWrite( D13_LED, LOW );
+  // 処理が終わったら（必要に応じて）LED を消灯する処理をここに書けます
+  //digitalWrite( D13_LED, LOW );
 }
 
 //-----------------------------------------------
-// called when the parser does not read the expected response in the specified time limit
+// パーサが指定時間内に期待する応答を受け取れなかったときに呼ばれる
 void onTimeout() {
-    // set state to ADVERTISING
+  // 状態を ADVERTISING に設定
     ble_state = BLE_STATE_ADVERTISING;
 
     // clear "encrypted" and "bonding" info
@@ -876,14 +578,14 @@ void onTimeout() {
 }
 
 //-----------------------------------------------
-// called immediately before beginning UART TX of a command
+// コマンドの UART 送信を開始する直前に呼ばれる
 void onBeforeTXCommand() {
 }
 
 //-----------------------------------------------
-// called immediately after finishing UART TX
+// コマンドの UART 送信が完了した直後に呼ばれる
 void onTXCommandComplete() {
-    // allow module to return to sleep (assuming here that digital pin 5 is connected to the BLE wake-up pin)
+  // (例) 送信完了後にモジュールをスリープに戻す処理を書く
 #ifdef DEBUG
     Serial.println(F("onTXCommandComplete"));
 #endif
@@ -1020,3 +722,16 @@ void my_rsp_system_get_bt_address(const struct ble_msg_system_get_bt_address_rsp
 }
 // --- 未定義関数・変数のダミー定義 ---
 void i2c_write_byte(uint8_t addr, uint8_t reg, uint8_t data) {}
+
+void trim(char * data){
+  int i = 0, j = 0;
+
+  while (*(data + i) != '\0'){
+    if (*(data + i) != ' '){
+      *(data + j) = *(data + i);
+      j++;
+    }
+    i++;
+  }
+  *(data + j) = '\0';
+}

@@ -143,6 +143,7 @@ String strDeviceName = "Leafony_AC02";
 //------------------------------
 // GPS
 //------------------------------
+SoftwareSerial gpsSerial(A1, A2); // RX, TX
 // GPSデータ格納用構造体
 struct GPSData {
   double latitude;
@@ -153,10 +154,24 @@ struct GPSData {
   uint8_t hour;
   uint8_t minute;
   uint8_t second;
+  double setDate;
 };
 TinyGPSPlus gps;
 GPSData latestGPS;
 std::vector<GPSData> gpsLog;  // 可変長配列（ログ）: std::vector を使用して順次 push_back する
+unsigned long previousMillis = 0;  // 前回実行した時刻
+const unsigned long interval = 5000; // 5秒（5000ミリ秒）
+
+struct sampleData {
+  double latitude;
+  double longitude;
+  uint8_t year;
+  uint8_t month;
+  uint8_t day;
+  uint8_t hour;
+  uint8_t minute;
+  uint8_t second;
+};
 
 //------------------------------
 // BLE
@@ -245,32 +260,20 @@ void setupTimerInt(){
 
 //====================================================================
 // Loop
-//=====================================================================
-//---------------------------------------------------------------------
-// メインループ
-//---------------------------------------------------------------------
+//====================================================================
 void loop() {
-  //-----------------------------------------------------
-  // タイマー割り込み（125ms 間隔）のループ処理
-  //-----------------------------------------------------
-  if (bInterval == true){
-     bInterval = false;
-    //--------------------------------------------
-    loopCounter();                    // loop counter
-    //--------------------------------------------
-    // Run once in 5s
-    //--------------------------------------------
-    if(event1s == true){
-      event1s = false;
-      // センサー読み取り処理は無効化。代わりにダミー日時を送信する。
-    //   bt_sendData();                  // ダミー日時送信
-    }
+  while (gpsSerial.available() > 0){
+        if (gps.encode(gpsSerial.read())){
+          setDate();
+        }
   }
+
+  
   loopBleRcv();
 }
 //---------------------------------------------------------------------
 // ループカウンタ
-// メインループのループ回数をカウントし、1秒間隔でセンサー取得やBLE送信のフラグを立てます
+// メインループのループ回数をカウントし、5秒間隔でセンサー取得やBLE送信のフラグを立てます
 //---------------------------------------------------------------------
 void loopCounter(){
   iLoop5s += 1;
@@ -290,19 +293,35 @@ void loopCounter(){
 }
 
 void setDate(){
-  if (gps.location.isValid()) {
-  // GPS の値を構造体に格納
-    // 注意: struct の year は uint8_t のため、2000 年基準の下位バイト（年 - 2000）で保存します
-    latestGPS.latitude = (double)gps.location.lat();
-    latestGPS.longitude = (double)gps.location.lng();
-    latestGPS.year = (uint8_t)(gps.date.year() - 2000);
-    latestGPS.month = (uint8_t)(gps.date.month());
-    latestGPS.day = (uint8_t)(gps.date.day());
-    latestGPS.hour = (uint8_t)(gps.time.hour());
-    latestGPS.minute = (uint8_t)(gps.time.minute());
-    latestGPS.second = (uint8_t)(gps.time.second());
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis; // 時刻を更新
+  // GPS の値を構造体に格納（数値で保持）
+    latestGPS.latitude = gps.location.lat();
+    latestGPS.longitude = gps.location.lng();
+    latestGPS.year = (uint16_t)gps.date.year();
+    latestGPS.month = (uint8_t)gps.date.month();
+    latestGPS.day = (uint8_t)gps.date.day();
+    latestGPS.hour = (uint8_t)gps.time.hour();
+    latestGPS.minute = (uint8_t)gps.time.minute();
+    latestGPS.second = (uint8_t)gps.time.second();
 
+    // 可変長ログに追加
     gpsLog.push_back(latestGPS);
+    // 日時をフォーマットして Serial に表示
+    char dateBuf[32];
+    snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
+             latestGPS.year,
+             latestGPS.month,
+             latestGPS.day,
+             latestGPS.hour,
+             latestGPS.minute,
+             latestGPS.second);
+
+    // 位置と日時を表示（位置は小数点6桁で表示）
+    Serial.println(dateBuf);
+    Serial.println(latestGPS.latitude, 6);
+    Serial.println(latestGPS.longitude, 6);
   } else {
     latestGPS.latitude = 0.0;
     latestGPS.longitude = 0.0;
@@ -320,11 +339,17 @@ void setDate(){
 // センサー取得/送信処理を無効化し、ダミーの日時（YYYYMMDDHHMMSS）を送信します。
 //---------------------------------------------------------------------
 void bt_sendData(){
+  for(int i = 0; i < gpsLog.size(); i++) {
+    Serial.println("GPS Log Entry:");
+
+
+  }
   char dateBuf[32];
 
   int len = snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
                      (unsigned)dummy_year, (unsigned)dummy_month, (unsigned)dummy_day,
                      (unsigned)dummy_hour, (unsigned)dummy_minute, (unsigned)dummy_second);
+
 
   // シリアルとBLEで送信（デバッグ用に常に出力）
   Serial.println(dateBuf);

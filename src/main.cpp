@@ -23,6 +23,13 @@ const unsigned long interval = 5000; // 5秒（5000ミリ秒）
 struct GPSData {
   double latitude;
   double longitude;
+  double setDate;
+};
+  char dateBuf[32]; // 日付フォーマット用バッファ
+
+struct DateDate
+{
+  /* data */
   uint16_t year; // 西暦
   uint8_t month;
   uint8_t day;
@@ -32,7 +39,11 @@ struct GPSData {
 };
 
 
+
+
+
 // 最新の GPS データ
+DateDate setDate;
 GPSData latestGPS;
 
 // 可変長配列（ログ）: std::vector を使用して順次 push_back する
@@ -48,9 +59,15 @@ void setup() {
 
 void loop() {
   // This sketch displays information every time a new sentence is correctly encoded.
+  //ifに変更＆Bluetoothが接続されたときに動作するように変更（フラグ作成予定）
     while (gpsSerial.available() > 0){
+      Serial.println("GPSデータ受信中...");
         if (gps.encode(gpsSerial.read())){
+          Serial.println("GPSデータ受信完了！");
         displayInfo();
+        }
+        else {
+          Serial.println("GPSデータ受信エラー");
         }
     }
 }
@@ -70,27 +87,32 @@ void displayInfo() {
   // GPS の値を構造体に格納（数値で保持）
     latestGPS.latitude = gps.location.lat();
     latestGPS.longitude = gps.location.lng();
-    latestGPS.year = (uint16_t)gps.date.year();
-    latestGPS.month = (uint8_t)gps.date.month();
-    latestGPS.day = (uint8_t)gps.date.day();
-    latestGPS.hour = (uint8_t)gps.time.hour();
-    latestGPS.minute = (uint8_t)gps.time.minute();
-    latestGPS.second = (uint8_t)gps.time.second();
+    setDate.year = (uint16_t)gps.date.year();
+    setDate.month = (uint8_t)gps.date.month();
+    setDate.day = (uint8_t)gps.date.day();
+    setDate.hour = (uint8_t)gps.time.hour();
+    setDate.minute = (uint8_t)gps.time.minute();
+    setDate.second = (uint8_t)gps.time.second();
+
+    // 日時をフォーマットして Serial に表示
+    
+    snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
+    setDate.year,
+    setDate.month,
+    setDate.day,
+    setDate.hour,
+    setDate.minute,
+    setDate.second);
+
+    latestGPS.setDate = atof(dateBuf);
 
     // 可変長ログに追加
     gpsLog.push_back(latestGPS);
-    // 日時をフォーマットして Serial に表示
-    char dateBuf[32];
-    snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
-             latestGPS.year,
-             latestGPS.month,
-             latestGPS.day,
-             latestGPS.hour,
-             latestGPS.minute,
-             latestGPS.second);
+    
+
 
     // 位置と日時を表示（位置は小数点6桁で表示）
-    Serial.println(dateBuf);
+    Serial.println(gpsLog.back().setDate);
     Serial.println(latestGPS.latitude, 6);
     Serial.println(latestGPS.longitude, 6);
   }
