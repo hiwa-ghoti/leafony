@@ -3,7 +3,6 @@
 #include <SoftwareSerial.h>
 #include <vector>
 #include <stdio.h>
-#include <string.h>
 
 // Choose two Arduino pins to use for software serial
 // int RXPin = 2;
@@ -22,11 +21,11 @@ const unsigned long interval = 5000; // 5秒（5000ミリ秒）
 
 // GPSデータ格納用構造体（String はメモリを圧迫するため数値型で保持）
 struct GPSData {
-  double latitude;  //緯度
-  double longitude; //経度
-  char setDate[14]; // 日付文字列 (null 終端する)
+  double latitude;  //
+  double longitude; //度
+  double setDate;
 };
-  char dateBuf[14]; // 日付フォーマット用バッファ
+  char dateBuf[32]; // 日付フォーマット用バッファ
 
 struct DateDate
 {
@@ -38,6 +37,10 @@ struct DateDate
   uint8_t minute;
   uint8_t second;
 };
+
+
+
+
 
 // 最新の GPS データ
 DateDate setDate;
@@ -55,20 +58,19 @@ void setup() {
 }
 
 void loop() {
-  
   // This sketch displays information every time a new sentence is correctly encoded.
   //ifに変更＆Bluetoothが接続されたときに動作するように変更（フラグ作成予定）
     while (gpsSerial.available() > 0){
         if (gps.encode(gpsSerial.read())){
         displayInfo();
         }
+      
     }
 }
 
-// void secondCh > 0) 
-//   unsigned long currentMillis = mi 
-// Serial.println("-----"); Serial.println("GPSデータ受信完了！");();
-//   if (currentMillis - lastT
+// void secondCheck() {
+//   unsigned long currentMillis = millis();
+//   if (currentMillis - lastTime >= 5000) {
 //     lastTime = currentMillis;
 //     getTime = true;
 //   }
@@ -81,40 +83,33 @@ void displayInfo() {
   // GPS の値を構造体に格納（数値で保持）
     latestGPS.latitude = gps.location.lat();
     latestGPS.longitude = gps.location.lng();
-    setDate.year = (int)gps.date.year();
-    setDate.month = (int)gps.date.month();
-    setDate.day = (int)gps.date.day();
-    setDate.hour = (int)gps.time.hour();
-    setDate.minute = (int)gps.time.minute();
-    setDate.second = (int)gps.time.second();
+    setDate.year = (uint16_t)gps.date.year();
+    setDate.month = (uint8_t)gps.date.month();
+    setDate.day = (uint8_t)gps.date.day();
+    setDate.hour = (uint8_t)gps.time.hour();
+    setDate.minute = (uint8_t)gps.time.minute();
+    setDate.second = (uint8_t)gps.time.second();
 
-    // 日時をフォーマットしてバッファに格納（"YYYYMMDDHHMMSS"）
-    snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
-      (unsigned)setDate.year,
-      (unsigned)setDate.month,
-      (unsigned)setDate.day,
-      (unsigned)setDate.hour,
-      (unsigned)setDate.minute,
-      (unsigned)setDate.second);
-
-
-    // Serial.println(n);
-
-    // latestGPS.setDate にコピー（安全に
-    strncpy(latestGPS.setDate, dateBuf, sizeof(latestGPS.setDate));
+    // 日時をフォーマットして Serial に表示
     
+    snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
+    setDate.year,
+    setDate.month,
+    setDate.day,
+    setDate.hour,
+    setDate.minute,
+    setDate.second);
 
-    // Serial.println(dateBuf);
+    latestGPS.setDate = atof(dateBuf);
 
     // 可変長ログに追加
-    gpsLog.push_back(latestGPS);
+    // gpsLog.push_back(latestGPS);
     
 
 
     // 位置と日時を表示（位置は小数点6桁で表示）
-    // Serial.println(latestGPS.setDate);
-    Serial.println(gpsLog.back().setDate);
-    Serial.println(gpsLog.back().latitude, 6);
-    Serial.println(gpsLog.back().longitude, 6);
+    Serial.println(latestGPS.setDate);
+    Serial.println(latestGPS.latitude);
+    Serial.println(latestGPS.longitude, 6);
   }
 }

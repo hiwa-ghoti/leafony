@@ -257,10 +257,11 @@ void setupTimerInt(){
   timer2->resume();
 }
 
-//====================================================================
+//=============================
 // Loop
 //====================================================================
 void loop() {
+    Serial.println("Main Loop");
     bt_sendData();
     
     loopBleRcv();
@@ -333,6 +334,7 @@ void setDate(){
 // センサー取得/送信処理を無効化し、ダミーの日時（YYYYMMDDHHMMSS）を送信します。
 //---------------------------------------------------------------------
 void bt_sendData(){
+  Serial.println("send ready");
   char * setDate , * latitude , * longitude;
   char sendData[40];
   uint8 sendLen;
