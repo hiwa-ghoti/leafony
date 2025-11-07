@@ -52,6 +52,7 @@ void my_evt_le_connection_closed(const struct ble_msg_le_connection_closed_evt_t
 void my_evt_system_boot(const struct ble_msg_system_boot_evt_t *msg);
 void my_evt_system_awake(void);
 void my_rsp_system_get_bt_address(const struct ble_msg_system_get_bt_address_rsp_t *msg);
+void displayInfo();
 
 
 //===============================================
@@ -199,6 +200,7 @@ std::vector<GPSData> gpsLog;
 int gpscounter = 0;
 int counter = 0;
 
+
 //------------------------------
 // LCD
 //------------------------------
@@ -298,33 +300,11 @@ float dataBatt = 0;
 // setup
 //=====================================================================
 void setup(){
- delay(10000);
-  Serial.println("start setup");
+//  delay(1000);
+
   Serial.begin(9600);     // UART 9600bps
-  gpsSerial.begin(9600);
   Wire.begin();             // I2C 100kHz
 //SERIAL_MONITORがあるかどうかで分岐
-
-//ダミーデータ作成
-
-strcpy(latestGPS.latitude, "35.698268");
-strcpy(latestGPS.longitude, "139.773021");
-strcpy(latestGPS.setDate, "20251106211307");
-
-gpsLog.push_back(latestGPS);
-
-strcpy(latestGPS.latitude, "35.698268");
-strcpy(latestGPS.longitude, "139.773021");
-strcpy(latestGPS.setDate, "20251106211312");
-
-gpsLog.push_back(latestGPS);
-
-strcpy(latestGPS.latitude, "35.698268");
-strcpy(latestGPS.longitude, "139.773021");
-strcpy(latestGPS.setDate, "20251106211317");
-
-gpsLog.push_back(latestGPS);
-Serial.println(gpsLog.size());
 
   if (dispLCD==1){
     i2c_write_byte(LCD_I2C_EXPANDER_ADDR, 0x03, 0xFE);
@@ -426,98 +406,32 @@ void setupSensor(){
 // Main loop
 //---------------------------------------------------------------------
 void loop() {
-  // Serial.println("start loop");
-  
-  // Serial.println("entry gps");
-  // while (gpsSerial.available() > 0){
-  //     if (gps.encode(gpsSerial.read())){
-  //     displayInfo();
-  //     }
-  // }
-  //-----------------------------------------------------
+
+  while (gpscounter != 10){
+    while (gpsSerial.available() > 0){
+        if (gps.encode(gpsSerial.read())){
+        displayInfo();
+        }
+    }
+  }
   //-----------------------------------------------------
   // Timer interval Loop once in 125ms
-  if (bInterval == true){
+  //-----------------------------------------------------
+  if (bInterval == true && gpscounter == 10){
      bInterval = false;
-    Serial.println("entry BLE");
+
     //--------------------------------------------
     loopCounter();                    // loop counter
     //--------------------------------------------
     // Run once in 1s
     //--------------------------------------------
-
     if(event1s == true){
       event1s = false;
-      Serial.println("entry sensor");
       loopSensor();                   // sensor read
       bt_sendData();                  // Data send
-      Serial.println("send data");
     }
   }
   loopBleRcv();
-}
-
-void displayInfo() {
-  
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis; // 時刻を更新
-  // GPS の値を構造体に格納（数値で保持）
-    latlng.latitude = gps.location.lat();
-    latlng.longitude = gps.location.lng();
-    Date.year = gps.date.year();
-    Date.month = gps.date.month();
-    Date.day = gps.date.day();
-    Date.hour = gps.time.hour();
-    Date.minute = gps.time.minute();
-    Date.second = gps.time.second();
-
-
-    // double 型の緯度経度を文字列に変換
-    dtostrf(latlng.latitude, latLen, 6, latBuf);
-    dtostrf(latlng.longitude, lngLen, 6, lngBuf);
-
-    // 緯度経度のバッファ内容をデバッグ出力
-    // Serial.println(latBuf);
-    // Serial.println(lngBuf);
-
-    // 日時をフォーマットしてバッファに格納（"YYYYMMDDHHMMSS"）
-    int n = snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
-      (unsigned)Date.year,
-      (unsigned)Date.month,
-      (unsigned)Date.day,
-      (unsigned)Date.hour,
-      (unsigned)Date.minute,
-      (unsigned)Date.second);
-
-      Serial.println(dateBuf);
-
-    // latestGPSにchar型に変換した各データを格納
-    strncpy(latestGPS.latitude, latBuf, sizeof(latestGPS.latitude));
-    strncpy(latestGPS.longitude, lngBuf, sizeof(latestGPS.longitude));
-    strncpy(latestGPS.setDate, dateBuf, sizeof(latestGPS.setDate));
-    
-    // Serial.println(latestGPS.setDate);    
-
-    // トリム（空白削除）
-    //各データを整形
-    trim(latestGPS.latitude);
-    trim(latestGPS.longitude);
-    trim(latestGPS.setDate);
-    
-
-    // 可変長ログに追加
-    gpsLog.push_back(latestGPS);
-    
-    // 位置と日時を表示（位置は小数点6桁で表示）
-    // Serial.println(latestGPS.setDate);
-    // Serial.println(gpsLog.back().setDate);
-    // Serial.println(gpsLog.back().latitude);
-    // Serial.println(gpsLog.back().longitude);
-    Serial.println(gpsLog.size()); // ログの件数表示
-    gpscounter++;
-    Serial.println(gpscounter);
-  }
 }
 //---------------------------------------------------------------------
 // Counter
@@ -530,7 +444,7 @@ void loopCounter(){
   //--------------------
   // 1s period
   //--------------------
-  if (iLoop1s >=  8){                 // 125ms x 8 = 1s
+  if (iLoop1s >=  80){                 // 125ms x 8 = 1s
     iLoop1s = 0;
 
     iSendCounter  += 1;
@@ -655,7 +569,7 @@ void bt_sendData(){
   float value;
   char temp[7], humid[7], light[7], tilt[7],battVolt[7], pips[7];
   char sendData[40];
-  uint8 sendLen = 14;
+  uint8 sendLen;
 
   //-------------------------
   // Convert sensor data to strings
@@ -780,19 +694,17 @@ void bt_sendData(){
   //-------------------------
   // BLE Send Data
   //-------------------------
-  Serial.println("Hello");
   if( bBLEsendData == true ){                                 // BLE transmission
     for (size_t i = 0; i < gpsLog.size(); i++){
-        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].setDate);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].latitude );
         while (ble112.checkActivity(1000));
+        Serial.println(gpsLog[i].latitude);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].longitude );
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog[i].longitude);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].setDate );
+        while (ble112.checkActivity(1000)); 
         Serial.println(gpsLog[i].setDate);
-        delay(100);
-        // ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].longitude );
-        // while (ble112.checkActivity(1000));
-        // Serial.println(gpsLog[i].longitude);
-        // ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].setDate );
-        // while (ble112.checkActivity(1000)); 
-        // Serial.println(gpsLog[i].setDate);
     }
     
     // // Format for WebBluetooth application
@@ -808,19 +720,19 @@ void bt_sendData(){
     //-------------------------
     // Serial monitor display
     //-------------------------
-// #ifdef SERIAL_MONITOR
-// // To display on multiple lines
-// /*
-//   Serial.println("--- sensor data ---");    
-//   Serial.println("  Tmp[degC]     = " + String(dataTemp));
-//   Serial.println("  Hum[%]        = " + String(dataHumid));
-//   Serial.println("  Lum[lx]       = " + String(dataLight));
-//   Serial.println("  Ang[arc deg]  = " + String(dataTilt));
-//   Serial.println("  Bat[V]        = " + String(dataBatt));
-// */
-// // To display on a single line
-//   Serial.println("SensorData: Temp=" + String(temp) + ", Humid=" + String(humid) + ", Light=" + String(light) + ", Tilt=" + String(tilt) + ", Vbat=" + String(battVolt) + ", Dice=" + String(pips));
-// #endif
+#ifdef SERIAL_MONITOR
+// To display on multiple lines
+/*
+  Serial.println("--- sensor data ---");    
+  Serial.println("  Tmp[degC]     = " + String(dataTemp));
+  Serial.println("  Hum[%]        = " + String(dataHumid));
+  Serial.println("  Lum[lx]       = " + String(dataLight));
+  Serial.println("  Ang[arc deg]  = " + String(dataTilt));
+  Serial.println("  Bat[V]        = " + String(dataBatt));
+*/
+// To display on a single line
+  Serial.println("SensorData: Temp=" + String(temp) + ", Humid=" + String(humid) + ", Light=" + String(light) + ", Tilt=" + String(tilt) + ", Vbat=" + String(battVolt) + ", Dice=" + String(pips));
+#endif
 }
 //====================================================================
 
@@ -1172,3 +1084,63 @@ void my_rsp_system_get_bt_address(const struct ble_msg_system_get_bt_address_rsp
 // --- 未定義関数・変数のダミー定義 ---
 void i2c_write_byte(uint8_t addr, uint8_t reg, uint8_t data) {}
 
+void displayInfo() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis; // 時刻を更新
+  // GPS の値を構造体に格納（数値で保持）
+    latlng.latitude = gps.location.lat();
+    latlng.longitude = gps.location.lng();
+    Date.year = gps.date.year();
+    Date.month = gps.date.month();
+    Date.day = gps.date.day();
+    Date.hour = gps.time.hour();
+    Date.minute = gps.time.minute();
+    Date.second = gps.time.second();
+
+
+    // double 型の緯度経度を文字列に変換
+    dtostrf(latlng.latitude, latLen, 6, latBuf);
+    dtostrf(latlng.longitude, lngLen, 6, lngBuf);
+
+    // 緯度経度のバッファ内容をデバッグ出力
+    // Serial.println(latBuf);
+    // Serial.println(lngBuf);
+
+    // 日時をフォーマットしてバッファに格納（"YYYYMMDDHHMMSS"）
+    int n = snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
+      (unsigned)Date.year,
+      (unsigned)Date.month,
+      (unsigned)Date.day,
+      (unsigned)Date.hour,
+      (unsigned)Date.minute,
+      (unsigned)Date.second);
+
+      Serial.println(dateBuf);
+
+    // latestGPSにchar型に変換した各データを格納
+    strncpy(latestGPS.latitude, latBuf, sizeof(latestGPS.latitude));
+    strncpy(latestGPS.longitude, lngBuf, sizeof(latestGPS.longitude));
+    strncpy(latestGPS.setDate, dateBuf, sizeof(latestGPS.setDate));
+    
+    // Serial.println(latestGPS.setDate);    
+
+    // トリム（空白削除）
+    //各データを整形
+    trim(latestGPS.latitude);
+    trim(latestGPS.longitude);
+    trim(latestGPS.setDate);
+    
+
+    // 可変長ログに追加
+    gpsLog.push_back(latestGPS);
+    
+    // 位置と日時を表示（位置は小数点6桁で表示）
+    // Serial.println(latestGPS.setDate);
+    // Serial.println(gpsLog.back().setDate);
+    // Serial.println(gpsLog.back().latitude);
+    // Serial.println(gpsLog.back().longitude);
+    Serial.println(gpsLog.size()); // ログの件数表示
+    gpscounter++;
+  }
+}
