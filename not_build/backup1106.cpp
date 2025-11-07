@@ -429,19 +429,17 @@ void loop() {
   // Serial.println("start loop");
   
   // Serial.println("entry gps");
-  // if(bBLEsendData == false){
-  //   while (gpsSerial.available() > 0){
-  //       if (gps.encode(gpsSerial.read())){
-  //       displayInfo();
-  //       }
-  //   }
+  // while (gpsSerial.available() > 0){
+  //     if (gps.encode(gpsSerial.read())){
+  //     displayInfo();
+  //     }
   // }
   //-----------------------------------------------------
   //-----------------------------------------------------
   // Timer interval Loop once in 125ms
   if (bInterval == true && bBLEsendData == true){
      bInterval = false;
-     
+    Serial.println("entry BLE");
     //--------------------------------------------
     loopCounter();                    // loop counter
     //--------------------------------------------
@@ -783,7 +781,7 @@ void bt_sendData(){
   // BLE Send Data
   //-------------------------
   Serial.println("Hello");
-  if( counter < 1 ){                                 // BLE transmission
+  // if( bBLEsendData == true ){                                 // BLE transmission
     for (size_t i = 0; i < gpsLog.size(); i++){
         ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].setDate);
         while (ble112.checkActivity(1000));
@@ -811,30 +809,9 @@ void bt_sendData(){
     // // Send to BLE device
     // ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)sendData );
     // while (ble112.checkActivity(1000));
-    counter++;
-    Serial.println(counter);
-  }
-  if (counter == 1){
-    strcpy(latestGPS.latitude, "00.000000");
-    strcpy(latestGPS.longitude, "000.000000");
-    strcpy(latestGPS.setDate, "00000000000000");
+  // }
 
-    gpsLog.push_back(latestGPS);
-
-    ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().setDate);
-        while (ble112.checkActivity(1000));
-        Serial.println(gpsLog.back().setDate);
-        delay(1000);
-        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().latitude );
-        while (ble112.checkActivity(1000));
-        Serial.println(gpsLog.back().latitude);
-        delay(1000);
-        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().longitude );
-        while (ble112.checkActivity(1000));
-        Serial.println(gpsLog.back().longitude);
-        counter++;
-        Serial.println(counter);
-  }
+  
 
     //-------------------------
     // Serial monitor display
