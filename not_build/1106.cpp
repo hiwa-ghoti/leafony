@@ -68,6 +68,8 @@ void setup() {
 
   // Start the software serial port at the GPS's default baud
   gpsSerial.begin(9600);
+
+  delay(10000);
 }
 
 void loop() {
@@ -75,7 +77,7 @@ void loop() {
   // This sketch displays information every time a new sentence is correctly encoded.
   //ifに変更＆Bluetoothが接続されたときに動作するように変更（フラグ作成予定）
   // こいつはこのままで大丈夫なはず
-  while (gpscounter != 10)
+  if (gpscounter != 10)
   {
     while (gpsSerial.available() > 0){
         if (gps.encode(gpsSerial.read())){

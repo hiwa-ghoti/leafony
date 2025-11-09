@@ -12,9 +12,11 @@ function Leafony() {
     const CHARACTERISTIC_READ_UUID = "442f1571-8a00-9a28-cbe1-e1d4212d53eb";
     const CHARACTERISTIC_WRITE_UUID = "442f1572-8a00-9a28-cbe1-e1d4212d53eb";
 
-    let state = {};
+    let gpsDataSet = [];    
+    let gpsData = {};
     let char = {};
 
+    let NextData = 'date';
     let device;
     let server;
 
@@ -85,21 +87,24 @@ function Leafony() {
     function handleData( event ) {
         
         let data = event.target.value;
-        let decoder = new TextDecoder( 'utf-8' );
-        data = decoder.decode( data );
-        data = data.replace( /\r?\n/g, '' );
-        data = data.split( ',' );
 
-        state.devn = deviceName;
-        state.unin = uniqueName;
-        state.temp = data[0];
-        state.humd = data[1];
-        state.illm = data[2];
-        state.tilt = data[3];
-        state.batt = data[4];
-        state.dice = data[5];
+        if( NextData === 'date' && data !== 0 ){
+            gpsData.date = data;
+            NextData = 'latitude';
+        }
+        else if( NextData === 'latitude' ){
+            gpsData.latitude = data;
+            NextData = 'longitude';
+        }
+        else if( NextData === 'longitude' ){
+            gpsData.longitude = data;
+            NextData = 'date';
+            gpsDataSet.push( gpsData );
+            gpsData = {};
+        }
 
-        onStateChangeCallback( state );
+        
+        onStateChangeCallback( gpsData );
 
         if ( enSleep ) {
             sendCommand( 'STP' );
@@ -248,3 +253,9 @@ function Leafony() {
         }
     }
 }
+
+let gpsDataSet = [
+    {Date: 20251106211307, latitude: 35.676679, longitude:  139.597878},
+    {Date: 20251106211307, latitude: 35.676679, longitude:  139.597878},
+    {Date: 20251106211307, latitude: 35.676679, longitude:  139.597878}
+];

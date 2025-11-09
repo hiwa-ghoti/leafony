@@ -20,18 +20,16 @@
 //---------------------------------------------------------------------
 // difinition
 //---------------------------------------------------------------------
-#include <Arduino.h> 
-#include <TinyGPSPlus.h>
 #include <SoftwareSerial.h>                 // Software UART
-#include <vector>
-#include <stdio.h>
-#include <string.h>
 #include <Wire.h>                           // I2C
+
 #include <Adafruit_LIS3DH.h>                // 3-axis accelerometer
 #include <Adafruit_HTS221.h>                // humidity and temperature sensor
 #include <ClosedCube_OPT3001.h>             // Ambient Light Sensor
 #include "TBGLib.h"                         // BLE
 #include <ST7032.h>                         // LCD
+#include <TinyGPSPlus.h>
+#include <vector>
 
 // --- 関数プロトタイプ宣言 ---
 void i2c_write_byte(uint8_t addr, uint8_t reg, uint8_t data);
@@ -157,8 +155,7 @@ String strDeviceName = "Leafony_AC02";
 // GPS
 // ------------------------------
 TinyGPSPlus gps;
-// Use hardware Serial1 for GPS to avoid pin conflict with BLE (BLE uses A1/A2)
-// Wire GPS TX -> Serial1 RX pin on the board (e.g. PA10), and GPS RX -> Serial1 TX if needed.
+SoftwareSerial gpsSerial(A1, A2); // RX, TX
 void displayInfo();
 void trim(char * data); // 文字列トリム関数のプロトタイプ
 unsigned long previousMillis = 0;  // 前回実行した時刻
@@ -303,16 +300,13 @@ float dataBatt = 0;
 void setup(){
  
   Serial.println("start setup");
-  Serial.begin(9600);
-
-  // Start the software serial port at the GPS's default baud
-  // Use hardware UART Serial1 for GPS (more reliable than SoftwareSerial on STM32)
-  Serial1.begin(9600);
+  Serial.begin(9600);     // UART 9600bps
+  gpsSerial.begin(9600);
   Wire.begin();             // I2C 100kHz
 //SERIAL_MONITORがあるかどうかで分岐
 
 
-delay(8000);
+delay(10000);
 //ダミーデータ作成
 
 strcpy(latestGPS.latitude, "35.698268");
@@ -401,12 +395,12 @@ void setupSensor(){
   //----------------------------
   // HTS221 (temperature / humidity)
   //----------------------------
-//   while (!hts.begin_I2C()) {
-// #ifdef SERIAL_MONITOR
-//     Serial.println("Failed to find HTS221");
-// #endif
-//     delay(10);
-//   }
+  while (!hts.begin_I2C()) {
+#ifdef SERIAL_MONITOR
+    Serial.println("Failed to find HTS221");
+#endif
+    delay(10);
+  }
 
   //----------------------------
   // OPT3001 (light)
@@ -434,48 +428,41 @@ void setupSensor(){
 // Main loop
 //---------------------------------------------------------------------
 void loop() {
-  delay(100);
-  Serial.println("start loop");
+  // Serial.println("start loop");
   
-  int bob = Serial1.available();
-  Serial.print("Serial1.available() = ");
-  Serial.println(bob);
-  //ピンが同じだからずっと0を返してしまう
   // Serial.println("entry gps");
-  // if(bBLEsendData == false){
-  while (Serial1.available() > 0){
-      if (gps.encode(Serial1.read())){
+  if(bBLEsendData == false){
+    while (gpsSerial.available() > 0){
+        if (gps.encode(gpsSerial.read())){
         displayInfo();
-      }
+        }
+    }
   }
-
-    
-  // }
   //-----------------------------------------------------
   //-----------------------------------------------------
   // Timer interval Loop once in 125ms
-  // if (bInterval == true && bBLEsendData == true){
-  //    bInterval = false;
+  if (bInterval == true && bBLEsendData == true){
+     bInterval = false;
      
-  //   //--------------------------------------------
-  //   loopCounter();                    // loop counter
-  //   //--------------------------------------------
-  //   // Run once in 1s
-  //   //--------------------------------------------
+    //--------------------------------------------
+    loopCounter();                    // loop counter
+    //--------------------------------------------
+    // Run once in 1s
+    //--------------------------------------------
 
-  //   if(event1s == true){
-  //     event1s = false;
-  //     Serial.println("entry sensor");
-  //     loopSensor();                   // sensor read
-  //     bt_sendData();                  // Data send
-  //     Serial.println("send data");
-  //   }
-  // }
-  // loopBleRcv();
+    if(event1s == true){
+      event1s = false;
+      Serial.println("entry sensor");
+      loopSensor();                   // sensor read
+      bt_sendData();                  // Data send
+      Serial.println("send data");
+    }
+  }
+  loopBleRcv();
 }
 
 void displayInfo() {
-  Serial.println("display info");
+  
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis; // 時刻を更新
@@ -528,11 +515,12 @@ void displayInfo() {
     
     // 位置と日時を表示（位置は小数点6桁で表示）
     // Serial.println(latestGPS.setDate);
-    // Serial.println(gpsLog.back().setDate);
-    // Serial.println(gpsLog.back().latitude);
-    // Serial.println(gpsLog.back().longitude);
+    Serial.println(gpsLog.back().setDate);
+    Serial.println(gpsLog.back().latitude);
+    Serial.println(gpsLog.back().longitude);
     Serial.println(gpsLog.size()); // ログの件数表示
     gpscounter++;
+    Serial.println(gpscounter);
   }
 }
 //---------------------------------------------------------------------
