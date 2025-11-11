@@ -1,3 +1,4 @@
+
 //=====================================================================
 //  Leafony Platform sample sketch
 //     Application  : BLE 4-Sensers demo
@@ -805,7 +806,7 @@ void bt_sendData(){
   // BLE Send Data
   //-------------------------
   Serial.println("Hello");
-  if( counter < 1 ){                                 // BLE transmission
+  // if( counter < 1 ){                                 // BLE transmission
     for (size_t i = 0; i < gpsLog.size(); i++){
         ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].setDate);
         while (ble112.checkActivity(1000));
@@ -837,7 +838,7 @@ void bt_sendData(){
 
     // counter++;
     // Serial.println(counter);
-  }
+  // }
   if (counter == 1){
     strcpy(latestGPS.latitude, "00.000000");
     strcpy(latestGPS.longitude, "000.000000");
@@ -1226,4 +1227,3 @@ void my_rsp_system_get_bt_address(const struct ble_msg_system_get_bt_address_rsp
 }
 // --- 未定義関数・変数のダミー定義 ---
 void i2c_write_byte(uint8_t addr, uint8_t reg, uint8_t data) {}
-

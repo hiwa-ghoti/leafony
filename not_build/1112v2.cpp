@@ -308,24 +308,47 @@ void setup(){
 
 delay(10000);
 //ダミーデータ作成
-
-strcpy(latestGPS.latitude, "35.698268");
-strcpy(latestGPS.longitude, "139.773021");
-strcpy(latestGPS.setDate, "20251106211307");
-
+for (size_t i = 0; i < 1; i++)
+{
+  /* code */
+  strcpy(latestGPS.latitude, "35.111111");
+strcpy(latestGPS.longitude, "139.111111");
+strcpy(latestGPS.setDate, "20251111111111");
 gpsLog.push_back(latestGPS);
 
-strcpy(latestGPS.latitude, "35.698268");
-strcpy(latestGPS.longitude, "139.773021");
-strcpy(latestGPS.setDate, "20251106211312");
-
+strcpy(latestGPS.latitude, "35.222222");
+strcpy(latestGPS.longitude, "139.222222");
+strcpy(latestGPS.setDate, "20251122222222");
 gpsLog.push_back(latestGPS);
 
-strcpy(latestGPS.latitude, "35.698268");
-strcpy(latestGPS.longitude, "139.773021");
-strcpy(latestGPS.setDate, "20251106211317");
-
+strcpy(latestGPS.latitude, "35.333333");
+strcpy(latestGPS.longitude, "139.333333");
+strcpy(latestGPS.setDate, "20251133333333");
 gpsLog.push_back(latestGPS);
+
+strcpy(latestGPS.latitude, "35.444444");
+strcpy(latestGPS.longitude, "139.444444");
+strcpy(latestGPS.setDate, "20251144444444");
+gpsLog.push_back(latestGPS);
+
+strcpy(latestGPS.latitude, "35.555555");
+strcpy(latestGPS.longitude, "139.555555");
+strcpy(latestGPS.setDate, "20251155555555");
+gpsLog.push_back(latestGPS);
+
+// strcpy(latestGPS.latitude, "35.666666");
+// strcpy(latestGPS.longitude, "139.666666");
+// strcpy(latestGPS.setDate, "20251166666666");
+// gpsLog.push_back(latestGPS);
+
+// strcpy(latestGPS.latitude, "00.000000");
+// strcpy(latestGPS.longitude, "000.000000");
+// strcpy(latestGPS.setDate, "00000000000000");
+// gpsLog.push_back(latestGPS);
+}
+
+
+
 Serial.println(gpsLog.size());
 
   if (dispLCD==1){
@@ -442,6 +465,7 @@ void loop() {
   //-----------------------------------------------------
   // Timer interval Loop once in 125ms
   // && bBLEsendData == true
+  // Serial.println(bBLEsendData);
   if (bInterval == true ){
      bInterval = false;
      
@@ -535,7 +559,7 @@ void loopCounter(){
   //--------------------
   // 1s period
   //--------------------
-  if (iLoop1s >=  8){                 // 125ms x 8 = 1s
+  if (iLoop1s >=  0){                 // 125ms x 8 = 1s   //現在はCTなし
     iLoop1s = 0;
 
     iSendCounter  += 1;
@@ -660,6 +684,8 @@ void bt_sendData(){
   float value;
   char temp[7], humid[7], light[7], tilt[7],battVolt[7], pips[7];
   char sendData[40];
+  uint8 latLen = 9;
+  uint8 lngLen = 10;
   uint8 sendLen = 14;
 
   //-------------------------
@@ -786,75 +812,46 @@ void bt_sendData(){
   // BLE Send Data
   //-------------------------
   Serial.println("Hello");
-  if( counter < 1 ){                                 // BLE transmission
-    for (size_t i = 0; i < gpsLog.size(); i++){
-        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].setDate);
-        while (ble112.checkActivity(1000));
-        Serial.println(gpsLog[i].setDate);
-        delay(1000);
-        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].latitude );
-        while (ble112.checkActivity(1000));
-        Serial.println(gpsLog[i].latitude);
-        delay(1000);
-        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].longitude );
-        while (ble112.checkActivity(1000));
-        Serial.println(gpsLog[i].longitude);
-        delay(1000);
-        // ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].longitude );
-        // while (ble112.checkActivity(1000));
-        // Serial.println(gpsLog[i].longitude);
-        // ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].setDate );
-        // while (ble112.checkActivity(1000)); 
-        // Serial.println(gpsLog[i].setDate);
-    }
+  // delay(10000);
+  // if( counter < 1 ){                                 // BLE transmission
+  if(bBLEsendData == true){
+      for (size_t i = 0; i < gpsLog.size(); i++){
+      ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].setDate);
+      while (ble112.checkActivity(1000));
+      Serial.println(gpsLog[i].setDate);
+          // delay(1000);
+      ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, latLen, (const uint8 *)gpsLog[i].latitude );
+      while (ble112.checkActivity(1000));
+      Serial.println(gpsLog[i].latitude);
+          // delay(1000);
+      ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, lngLen, (const uint8 *)gpsLog[i].longitude );
+      while (ble112.checkActivity(1000));
+      Serial.println(gpsLog[i].longitude);
     
-    // // Format for WebBluetooth application
-    // sendLen = sprintf(sendData, "%04s,%04s,%04s,%04s,%04d\n", temp, humid, light, tilt, pips);
-    // Serial.println(sendData);
-    // // Send to BLE device
-    // ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)sendData );
-    // while (ble112.checkActivity(1000));
+    }
     // counter++;
-    // Serial.println(counter);
+  
+    // if (counter == 8){
+    // strcpy(latestGPS.latitude, "00.000000");
+    // strcpy(latestGPS.longitude, "000.000000");
+    // strcpy(latestGPS.setDate, "00000000000000");
+    // gpsLog.push_back(latestGPS);
+  
+    //   ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().setDate);
+    //       while (ble112.checkActivity(1000));
+    //       Serial.println(gpsLog.back().setDate);
+    //       delay(1000);
+    //       ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().latitude );
+    //       while (ble112.checkActivity(1000));
+    //       Serial.println(gpsLog.back().latitude);
+    //       delay(1000);
+    //       ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().longitude );
+    //       while (ble112.checkActivity(1000));
+    //       Serial.println(gpsLog.back().longitude);
+    //       counter++;
+    //       Serial.println(counter);
+    // }
   }
-  // if (counter == 1){
-  //   strcpy(latestGPS.latitude, "00.000000");
-  //   strcpy(latestGPS.longitude, "000.000000");
-  //   strcpy(latestGPS.setDate, "00000000000000");
-
-  //   gpsLog.push_back(latestGPS);
-
-  //   ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().setDate);
-  //       while (ble112.checkActivity(1000));
-  //       Serial.println(gpsLog.back().setDate);
-  //       delay(1000);
-  //       ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().latitude );
-  //       while (ble112.checkActivity(1000));
-  //       Serial.println(gpsLog.back().latitude);
-  //       delay(1000);
-  //       ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().longitude );
-  //       while (ble112.checkActivity(1000));
-  //       Serial.println(gpsLog.back().longitude);
-  //       counter++;
-  //       Serial.println(counter);
-  // }
-
-    //-------------------------
-    // Serial monitor display
-    //-------------------------
-// #ifdef SERIAL_MONITOR
-// // To display on multiple lines
-// /*
-//   Serial.println("--- sensor data ---");    
-//   Serial.println("  Tmp[degC]     = " + String(dataTemp));
-//   Serial.println("  Hum[%]        = " + String(dataHumid));
-//   Serial.println("  Lum[lx]       = " + String(dataLight));
-//   Serial.println("  Ang[arc deg]  = " + String(dataTilt));
-//   Serial.println("  Bat[V]        = " + String(dataBatt));
-// */
-// // To display on a single line
-//   Serial.println("SensorData: Temp=" + String(temp) + ", Humid=" + String(humid) + ", Light=" + String(light) + ", Tilt=" + String(tilt) + ", Vbat=" + String(battVolt) + ", Dice=" + String(pips));
-// #endif
 }
 //====================================================================
 
