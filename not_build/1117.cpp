@@ -1,3 +1,4 @@
+
 //=====================================================================
 //  Leafony Platform sample sketch
 //     Application  : BLE 4-Sensers demo
@@ -28,6 +29,8 @@
 #include <ClosedCube_OPT3001.h>             // Ambient Light Sensor
 #include "TBGLib.h"                         // BLE
 #include <ST7032.h>                         // LCD
+#include <TinyGPSPlus.h>
+#include <vector>
 
 // --- 関数プロトタイプ宣言 ---
 void i2c_write_byte(uint8_t addr, uint8_t reg, uint8_t data);
@@ -148,6 +151,55 @@ String strDeviceName = "Leafony_AC02";
 //---------------------------------------------------------------------
 // object
 //---------------------------------------------------------------------
+
+// ------------------------------
+// GPS
+// ------------------------------
+TinyGPSPlus gps;
+SoftwareSerial gpsSerial(8, 9); // RX, TX
+void displayInfo();
+void trim(char * data); // 文字列トリム関数のプロトタイプ
+unsigned long previousMillis = 0;  // 前回実行した時刻
+const unsigned long interval = 5000; // 5秒（5000ミリ秒）
+// GPSデータ格納用構造体（String はメモリを圧迫するため数値型で保持）
+struct GPSData {
+  char latitude[20];  //緯度
+  char longitude[20]; //経度
+  char setDate[20]; // 日付文字列 (null 終端する) — 19文字 + 終端
+};
+
+struct latlngData {
+  double latitude;  //緯度
+  double longitude; //経度
+};
+
+struct DateData
+{
+  /* data */
+  uint16_t year; // 西暦
+  uint8_t month;
+  uint8_t day;
+  uint8_t hour;
+  uint8_t minute;
+  uint8_t second;
+};
+
+int latLen = 9; // 緯度文字列長
+int lngLen = 10; // 経度文字列長
+char latBuf[20]; // 緯度フォーマット用バッファ
+char lngBuf[20]; // 経度フォーマット用バッファ
+char dateBuf[20]; // 日付フォーマット用バッファ
+
+// 最新の GPS データ
+latlngData latlng;
+DateData Date;
+GPSData latestGPS;
+
+// 可変長配列（ログ）: std::vector を使用して順次 push_back する
+std::vector<GPSData> gpsLog;
+int gpscounter = 0;
+int counter = 0;
+
 //------------------------------
 // LCD
 //------------------------------
@@ -247,16 +299,58 @@ float dataBatt = 0;
 // setup
 //=====================================================================
 void setup(){
-//  delay(1000);
-
-  Serial.begin(115200);     // UART 115200bps
+ 
+  Serial.println("start setup");
+  Serial.begin(9600);     // UART 9600bps
+  gpsSerial.begin(9600);
   Wire.begin();             // I2C 100kHz
 //SERIAL_MONITORがあるかどうかで分岐
-#ifdef SERIAL_MONITOR
-    Serial.println(F(""));
-    Serial.println(F("========================================="));
-    Serial.println(F("setup start"));
-#endif
+
+
+delay(3000);
+//ダミーデータ作成
+// for (size_t i = 0; i < 5; i++)
+// {
+//   /* code */
+strcpy(latestGPS.setDate, "20251114161718");
+strcpy(latestGPS.latitude, "35.698230");
+strcpy(latestGPS.longitude, "139.698121");
+gpsLog.push_back(latestGPS);
+
+strcpy(latestGPS.setDate, "20251114161718");
+strcpy(latestGPS.latitude, "35.698885");
+strcpy(latestGPS.longitude, "139.696797");
+gpsLog.push_back(latestGPS);
+
+strcpy(latestGPS.setDate, "20251114161718");
+strcpy(latestGPS.latitude, "35.699139");
+strcpy(latestGPS.longitude, "139.697982");
+gpsLog.push_back(latestGPS);
+
+strcpy(latestGPS.setDate, "20251114161718");
+strcpy(latestGPS.latitude, "35.695310");
+strcpy(latestGPS.longitude, "139.698920");
+gpsLog.push_back(latestGPS);
+
+strcpy(latestGPS.setDate, "20251114161718");
+strcpy(latestGPS.latitude, "35.697423");
+strcpy(latestGPS.longitude, "139.697881");
+gpsLog.push_back(latestGPS);
+
+strcpy(latestGPS.setDate, "20251114161718");
+strcpy(latestGPS.latitude, "35.698901");
+strcpy(latestGPS.longitude, "139.697404");
+gpsLog.push_back(latestGPS);
+
+// strcpy(latestGPS.latitude, "00.000000");
+// strcpy(latestGPS.longitude, "000.000000");
+// strcpy(latestGPS.setDate, "00000000000000");
+// gpsLog.push_back(latestGPS);
+// }
+
+
+
+// Serial.println(gpsLog.size());
 
   if (dispLCD==1){
     i2c_write_byte(LCD_I2C_EXPANDER_ADDR, 0x03, 0xFE);
@@ -279,12 +373,7 @@ void setup(){
 
   setupTimerInt();                            // Timer inverval start
 
-#ifdef SERIAL_MONITOR
-    Serial.println(F(""));
-    Serial.println("=========================================");
-    Serial.println(F("loop start"));
-    Serial.println(F(""));
-#endif
+
 }
 
 //-----------------------------------------------
@@ -363,24 +452,99 @@ void setupSensor(){
 // Main loop
 //---------------------------------------------------------------------
 void loop() {
-  //-----------------------------------------------------
-  // Timer interval Loop once in 125ms
-  //-----------------------------------------------------
-  if (bInterval == true){
-     bInterval = false;
+  // Serial.println("start loop");
+  
+  // GPSデータの取得と表示
+  // if(bBLEsendData == false){
+    // while (gpsSerial.available() > 0){
+    //     if (gps.encode(gpsSerial.read())){
+    //     displayInfo();
+    //     }
+    // }
+  // }
 
-    //--------------------------------------------
+
+  // bIntervalがtrueかつbBLEsendDataがtrueのときにデータ送信を実行
+  if (bInterval == true && bBLEsendData == true){
+     bInterval = false;
+    
+    //これをなくしたら動かくなるため必要
+    //おそらくevent1sがtrueになるまで待っている状態になるため  
     loopCounter();                    // loop counter
-    //--------------------------------------------
-    // Run once in 1s
-    //--------------------------------------------
+
     if(event1s == true){
       event1s = false;
+      Serial.println("entry sensor");
       loopSensor();                   // sensor read
+      //ここでデータを送信する
       bt_sendData();                  // Data send
+      Serial.println("send data");
     }
   }
   loopBleRcv();
+}
+
+void displayInfo() {
+  
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis; // 時刻を更新
+  // GPS の値を構造体に格納（数値で保持）
+    latlng.latitude = gps.location.lat();
+    latlng.longitude = gps.location.lng();
+    Date.year = gps.date.year();
+    Date.month = gps.date.month();
+    Date.day = gps.date.day();
+    Date.hour = gps.time.hour();
+    Date.minute = gps.time.minute();
+    Date.second = gps.time.second();
+
+
+    // double 型の緯度経度を文字列に変換
+    dtostrf(latlng.latitude, latLen, 6, latBuf);
+    dtostrf(latlng.longitude, lngLen, 6, lngBuf);
+
+    // 緯度経度のバッファ内容をデバッグ出力
+    // Serial.println(latBuf);
+    // Serial.println(lngBuf);
+
+    // 日時をフォーマットしてバッファに格納（"YYYYMMDDHHMMSS"）
+    int n = snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
+      (unsigned)Date.year,
+      (unsigned)Date.month,
+      (unsigned)Date.day,
+      (unsigned)Date.hour,
+      (unsigned)Date.minute,
+      (unsigned)Date.second);
+
+      Serial.println(dateBuf);
+
+    // latestGPSにchar型に変換した各データを格納
+    strncpy(latestGPS.latitude, latBuf, sizeof(latestGPS.latitude));
+    strncpy(latestGPS.longitude, lngBuf, sizeof(latestGPS.longitude));
+    strncpy(latestGPS.setDate, dateBuf, sizeof(latestGPS.setDate));
+    
+    // Serial.println(latestGPS.setDate);    
+
+    // トリム（空白削除）
+    //各データを整形
+    trim(latestGPS.latitude);
+    trim(latestGPS.longitude);
+    trim(latestGPS.setDate);
+    
+
+    // 可変長ログに追加
+    gpsLog.push_back(latestGPS);
+    
+    // 位置と日時を表示（位置は小数点6桁で表示）
+    // Serial.println(latestGPS.setDate);
+    Serial.println(gpsLog.back().setDate);
+    Serial.println(gpsLog.back().latitude);
+    Serial.println(gpsLog.back().longitude);
+    Serial.println(gpsLog.size()); // ログの件数表示
+    // gpscounter++;
+    // Serial.println(gpscounter);
+  }
 }
 //---------------------------------------------------------------------
 // Counter
@@ -393,7 +557,7 @@ void loopCounter(){
   //--------------------
   // 1s period
   //--------------------
-  if (iLoop1s >=  8){                 // 125ms x 8 = 1s
+  if (iLoop1s >=  0){                 // 125ms x 8 = 1s   //現在はCTなし
     iLoop1s = 0;
 
     iSendCounter  += 1;
@@ -420,11 +584,11 @@ void loopSensor(){
     dataY_g = accel.y_g;    // Y-axis
     dataZ_g = accel.z_g;    // Z-axis
 
-    // if(dataZ_g >= 1.0){
-    //   dataZ_g = 1.00;
-    // } else if (dataZ_g <= -1.0){
-    //   dataZ_g = -1.00;
-    // }
+    if(dataZ_g >= 1.0){
+      dataZ_g = 1.00;
+    } else if (dataZ_g <= -1.0){
+      dataZ_g = -1.00;
+    }
 
     dataTilt = acos(dataZ_g) / PI * 180;
 
@@ -518,7 +682,9 @@ void bt_sendData(){
   float value;
   char temp[7], humid[7], light[7], tilt[7],battVolt[7], pips[7];
   char sendData[40];
-  uint8 sendLen;
+  uint8 latLen = 9;
+  uint8 lngLen = 10;
+  uint8 sendLen = 14;
 
   //-------------------------
   // Convert sensor data to strings
@@ -643,33 +809,69 @@ void bt_sendData(){
   //-------------------------
   // BLE Send Data
   //-------------------------
-  if( bBLEsendData == true ){                                 // BLE transmission
-    // Format for WebBluetooth application
-    sendLen = sprintf(sendData, "%04s,%04s,%04s,%04s,%04d\n", temp, humid, light, tilt, pips);
-    Serial.println(sendData);
-    // Send to BLE device
-    ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)sendData );
-    while (ble112.checkActivity(1000));
-  }
+  Serial.println("Hello");
+  if( counter < 1 ){                                 // BLE transmission
+    for (size_t i = 0; i < gpsLog.size(); i++){
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].setDate);
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog[i].setDate);
+        // delay(1000);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, latLen, (const uint8 *)gpsLog[i].latitude );
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog[i].latitude);
+        // delay(1000);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, lngLen, (const uint8 *)gpsLog[i].longitude );
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog[i].longitude);
 
-  
+    }
+
+
+    counter++;
+    Serial.println(counter);
+  }
+  if (counter == 1){
+    strcpy(latestGPS.setDate, "00000000000000");
+    strcpy(latestGPS.latitude, "00.000000\0");
+    strcpy(latestGPS.longitude, "000.000000\0");
+
+    trim(latestGPS.latitude);
+    trim(latestGPS.longitude);
+    trim(latestGPS.setDate);
+
+    gpsLog.push_back(latestGPS);
+
+    ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().setDate);
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog.back().setDate);
+        // delay(1000);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().latitude );
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog.back().latitude);
+        // delay(1000);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().longitude );
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog.back().longitude);
+        counter++;
+        Serial.println(counter);
+  }
 
     //-------------------------
     // Serial monitor display
     //-------------------------
-#ifdef SERIAL_MONITOR
-// To display on multiple lines
-/*
-  Serial.println("--- sensor data ---");    
-  Serial.println("  Tmp[degC]     = " + String(dataTemp));
-  Serial.println("  Hum[%]        = " + String(dataHumid));
-  Serial.println("  Lum[lx]       = " + String(dataLight));
-  Serial.println("  Ang[arc deg]  = " + String(dataTilt));
-  Serial.println("  Bat[V]        = " + String(dataBatt));
-*/
-// To display on a single line
-  Serial.println("SensorData: Temp=" + String(temp) + ", Humid=" + String(humid) + ", Light=" + String(light) + ", Tilt=" + String(tilt) + ", Vbat=" + String(battVolt) + ", Dice=" + String(pips));
-#endif
+// #ifdef SERIAL_MONITOR
+// // To display on multiple lines
+// /*
+//   Serial.println("--- sensor data ---");    
+//   Serial.println("  Tmp[degC]     = " + String(dataTemp));
+//   Serial.println("  Hum[%]        = " + String(dataHumid));
+//   Serial.println("  Lum[lx]       = " + String(dataLight));
+//   Serial.println("  Ang[arc deg]  = " + String(dataTilt));
+//   Serial.println("  Bat[V]        = " + String(dataBatt));
+// */
+// // To display on a single line
+//   Serial.println("SensorData: Temp=" + String(temp) + ", Humid=" + String(humid) + ", Light=" + String(light) + ", Tilt=" + String(tilt) + ", Vbat=" + String(battVolt) + ", Dice=" + String(pips));
+// #endif
 }
 //====================================================================
 
