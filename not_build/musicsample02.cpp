@@ -229,10 +229,10 @@ int order[] = {
      3, 3, 3, 3, 6, 3, 3, 3, 3, 6,
      4, 4, 4, 4, 6, 5, 5, 5, 5, 6 } ;
 double speed[] = {
-    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
-    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
-    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
-    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
     1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0
 } ;
 
@@ -347,47 +347,43 @@ void setup(){
 //SERIAL_MONITORがあるかどうかで分岐
 
 
-  delay(10000);
+  delay(3000);
   //ダミーデータ作成
   //   /* code */
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.698230");
-  // strcpy(latestGPS.longitude, "139.698121");
-  // gpsLog.push_back(latestGPS);
+  strcpy(latestGPS.setDate, "20251114161718");
+  strcpy(latestGPS.latitude, "35.698230");
+  strcpy(latestGPS.longitude, "139.698121");
+  gpsLog.push_back(latestGPS);
 
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.698885");
-  // strcpy(latestGPS.longitude, "139.696797");
-  // gpsLog.push_back(latestGPS);
+  strcpy(latestGPS.setDate, "20251114161718");
+  strcpy(latestGPS.latitude, "35.698885");
+  strcpy(latestGPS.longitude, "139.696797");
+  gpsLog.push_back(latestGPS);
 
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.699139");
-  // strcpy(latestGPS.longitude, "139.697982");
-  // gpsLog.push_back(latestGPS);
+  strcpy(latestGPS.setDate, "20251114161718");
+  strcpy(latestGPS.latitude, "35.699139");
+  strcpy(latestGPS.longitude, "139.697982");
+  gpsLog.push_back(latestGPS);
 
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.695310");
-  // strcpy(latestGPS.longitude, "139.698920");
-  // gpsLog.push_back(latestGPS);
+  strcpy(latestGPS.setDate, "20251114161718");
+  strcpy(latestGPS.latitude, "35.695310");
+  strcpy(latestGPS.longitude, "139.698920");
+  gpsLog.push_back(latestGPS);
 
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.697423");
-  // strcpy(latestGPS.longitude, "139.697881");
-  // gpsLog.push_back(latestGPS);
+  strcpy(latestGPS.setDate, "20251114161718");
+  strcpy(latestGPS.latitude, "35.697423");
+  strcpy(latestGPS.longitude, "139.697881");
+  gpsLog.push_back(latestGPS);
 
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.698901");
-  // strcpy(latestGPS.longitude, "139.697404");
-  // gpsLog.push_back(latestGPS);
+  strcpy(latestGPS.setDate, "20251114161718");
+  strcpy(latestGPS.latitude, "35.698901");
+  strcpy(latestGPS.longitude, "139.697404");
+  gpsLog.push_back(latestGPS);
 
   initializeNote () ;
-  
   setupPort();
-  Serial.println("SetupPort");
   setupSensor();
-  Serial.println("SetupSensor");
   setupBLE();
-  Serial.println("SetupBLE");
 
   ble112.ble_cmd_system_get_bt_address();
   while (ble112.checkActivity(1000));
@@ -466,7 +462,6 @@ void setupSensor(){
 // music functions
 void initializeNote ()
 {
-  Serial.println("Initialize Note");
     int     i ;
 
     for ( i = 0 ; i < usePinCount ; i ++ )
@@ -487,13 +482,13 @@ void loop() {
   timer30000 () ;
   
   // GPSデータの取得と表示
-  if(bBLEsendData == false){
-    while (gpsSerial.available() > 0){
-        if (gps.encode(gpsSerial.read())){
-        displayInfo();
-        }
-    }
-  }
+  // if(bBLEsendData == false){
+    // while (gpsSerial.available() > 0){
+    //     if (gps.encode(gpsSerial.read())){
+    //     displayInfo();
+    //     }
+    // }
+  // }
 
   // bIntervalがtrueかつbBLEsendDataがtrueのときにデータ送信を実行
   if (bInterval == true && bBLEsendData == true){
@@ -1172,7 +1167,6 @@ unsigned char i2c_read_byte(int device_address, int reg_address){
 //  Setup BLE
 //-----------------------------------------------
 void setupBLE(){
-    Serial.println("Setup BLE");
     uint8  stLen;
     uint8 adv_data[31];
 
@@ -1212,7 +1206,6 @@ void setupBLE(){
       delay(10);
     }
 
-    Serial.println("BLE System Booted");
     /* setting */
     /* [set Advertising Data] */
     uint8 ad_data[21] = {
@@ -1225,29 +1218,29 @@ void setupBLE(){
 
     /*  */
     size_t lenStr2 = strDeviceName.length();
-    Serial.println("Device Name Length:");
+
     ad_data[3] = (lenStr2 + 1);                                 // field length
     uint8 u8Index;
     for( u8Index=0; u8Index < lenStr2; u8Index++){
       ad_data[5 + u8Index] = strDeviceName.charAt(u8Index);
     }
-    Serial.println("Device Name Set");
+
     /*   */
     stLen = (5 + lenStr2);
 
     //ble112.ble_cmd_le_gap_bt5_set_adv_data(0,SCAN_RSP_ADVERTISING_PACKETS, stLen, ad_data);
     ble112.ble_cmd_le_gap_set_adv_data(SCAN_RSP_ADVERTISING_PACKETS, stLen, ad_data);
-    Serial.println("BLE Advertising Data Setting...");
+
     while (ble112.checkActivity(1000));                         /* Receive check */
     delay(20);
-    Serial.println("BLE Advertising Data Set");
+
     /* interval_min :   40ms( =   64 x 0.625ms ) */
-    //ble112.ble_cmd_le_gap_bt5_set_adv_parameters( 0, 64, 1600, 7, 0 );/* [BGLib] <handle> <interval_min> <interval_max> <channel_map> <report_scan>*/
+    //ble112.ble_cmd_le_gap_bt5_set_adv_parameters( 0, 64, 1600, 7, 0 );/* [BGLIB] <handle> <interval_min> <interval_max> <channel_map> <report_scan>*/
     /* interval_max : 1000ms( = 1600 x 0.625ms ) */
     ble112.ble_cmd_le_gap_set_adv_parameters( 64, 1600, 7 );    /* [BGLIB] <interval_min> <interval_max> <channel_map> */
 
     while (ble112.checkActivity(1000));                         /* [BGLIB] Receive check */
-    Serial.println("BLE Advertising Parameters Set");
+
     /* start */
 //    ble112.ble_cmd_le_gap_bt5_set_mode(0,LE_GAP_USER_DATA,LE_GAP_UNDIRECTED_CONNECTABLE,0,2);
 //    ble112.ble_cmd_le_gap_set_mode(LE_GAP_USER_DATA,LE_GAP_UNDIRECTED_CONNECTABLE);
@@ -1255,7 +1248,6 @@ void setupBLE(){
     ble112.ble_cmd_le_gap_start_advertising(0, LE_GAP_USER_DATA, LE_GAP_UNDIRECTED_CONNECTABLE);                // index = 0
     while (ble112.checkActivity(1000));                         /* Receive check */
     /*  */
-    Serial.println("BLE finisshed");
 }
 
 //-----------------------------------------

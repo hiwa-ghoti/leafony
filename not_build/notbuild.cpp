@@ -229,10 +229,10 @@ int order[] = {
      3, 3, 3, 3, 6, 3, 3, 3, 3, 6,
      4, 4, 4, 4, 6, 5, 5, 5, 5, 6 } ;
 double speed[] = {
-    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
-    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
-    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
-    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
     1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0
 } ;
 
@@ -341,7 +341,7 @@ float dataBatt = 0;
 //=====================================================================
 void setup(){
 
-  Serial.begin(9600);     // UART 9600bps
+  Serial.begin(115200);     // UART 9600bps
   gpsSerial.begin(9600);
   Wire.begin();             // I2C 100kHz
 //SERIAL_MONITORがあるかどうかで分岐
@@ -487,13 +487,13 @@ void loop() {
   timer30000 () ;
   
   // GPSデータの取得と表示
-  if(bBLEsendData == false){
-    while (gpsSerial.available() > 0){
-        if (gps.encode(gpsSerial.read())){
-        displayInfo();
-        }
-    }
-  }
+  // if(bBLEsendData == false){
+    // while (gpsSerial.available() > 0){
+    //     if (gps.encode(gpsSerial.read())){
+    //     displayInfo();
+    //     }
+    // }
+  // }
 
   // bIntervalがtrueかつbBLEsendDataがtrueのときにデータ送信を実行
   if (bInterval == true && bBLEsendData == true){
@@ -1225,29 +1225,29 @@ void setupBLE(){
 
     /*  */
     size_t lenStr2 = strDeviceName.length();
-    Serial.println("Device Name Length:");
+
     ad_data[3] = (lenStr2 + 1);                                 // field length
     uint8 u8Index;
     for( u8Index=0; u8Index < lenStr2; u8Index++){
       ad_data[5 + u8Index] = strDeviceName.charAt(u8Index);
     }
-    Serial.println("Device Name Set");
+
     /*   */
     stLen = (5 + lenStr2);
 
     //ble112.ble_cmd_le_gap_bt5_set_adv_data(0,SCAN_RSP_ADVERTISING_PACKETS, stLen, ad_data);
     ble112.ble_cmd_le_gap_set_adv_data(SCAN_RSP_ADVERTISING_PACKETS, stLen, ad_data);
-    Serial.println("BLE Advertising Data Setting...");
+
     while (ble112.checkActivity(1000));                         /* Receive check */
     delay(20);
-    Serial.println("BLE Advertising Data Set");
+
     /* interval_min :   40ms( =   64 x 0.625ms ) */
-    //ble112.ble_cmd_le_gap_bt5_set_adv_parameters( 0, 64, 1600, 7, 0 );/* [BGLib] <handle> <interval_min> <interval_max> <channel_map> <report_scan>*/
+    //ble112.ble_cmd_le_gap_bt5_set_adv_parameters( 0, 64, 1600, 7, 0 );/* [BGLIB] <handle> <interval_min> <interval_max> <channel_map> <report_scan>*/
     /* interval_max : 1000ms( = 1600 x 0.625ms ) */
     ble112.ble_cmd_le_gap_set_adv_parameters( 64, 1600, 7 );    /* [BGLIB] <interval_min> <interval_max> <channel_map> */
 
     while (ble112.checkActivity(1000));                         /* [BGLIB] Receive check */
-    Serial.println("BLE Advertising Parameters Set");
+
     /* start */
 //    ble112.ble_cmd_le_gap_bt5_set_mode(0,LE_GAP_USER_DATA,LE_GAP_UNDIRECTED_CONNECTABLE,0,2);
 //    ble112.ble_cmd_le_gap_set_mode(LE_GAP_USER_DATA,LE_GAP_UNDIRECTED_CONNECTABLE);

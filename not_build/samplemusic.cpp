@@ -1,12 +1,12 @@
 #include <Adafruit_LIS3DH.h>
 
 #define LIS3DH_ADDRESS 0x19
-//LIS3DHクラスのインスタンスを作成
 Adafruit_LIS3DH accel = Adafruit_LIS3DH ();
 
+double GPSHeight = 0.0 ;
+
 int usePinCount = 8 ;
-int usePin[] = { D0, D4, D6, D7, D8, D10, D11, D12 } ; // Leafony接続時は1行下を有効にする
-    //int usePin[] = { D0, D1, D2, D3, D4, D5, D6 } ;
+int usePin[] = { D0, D4, D6, D7, D8, D10, D11, D12 } ; 
 int DO = 0 ;
 int RE = 1 ;
 int MI = 2 ;
@@ -17,79 +17,78 @@ int SI = 6 ;
 int DO2 = 7 ;
 int NO = 8 ;
 int END = 9 ;
+
+int musicMode = 0 ;
 int music[][256] = {
-    //4つの音符 
-    //間に入っている数字は音の長さを表す
-    //6だと0.1秒、12だと0.2秒、18だと0.3秒
     { DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, FA, 6, MI, 6, RE, 6, 
       DO, 6, RE, 6, MI, 6, FA, 6, FA, 12, 
       DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, FA, 6, MI, 6, RE, 6, 
-      DO, 6, RE, 6, MI, 6, FA, 6, FA, 18, END },//坂道を登るときUphill A
+      DO, 6, RE, 6, MI, 6, FA, 6, FA, 18, NO, 30, END
+    },
     { RE, 6, MI, 6, FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, 
       FA, 6, MI, 6, RE, 6, MI, 6, FA, 12, 
       MI, 6, FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 6, 
-      MI, 6, FA, 6, MI, 6, RE, 6, FA, 18, END },//坂道を登るときUphill B
+      MI, 6, FA, 6, MI, 6, RE, 6, FA, 18, NO, 30, END
+    },
     { FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, 
       FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 12, 
       MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, RE, 6, 
-      DO, 6, RE, 6, MI, 6, FA, 6, MI, 12, END },//坂道を軽快に下るUphill A  
+      DO, 6, RE, 6, MI, 6, FA, 6, MI, 12, NO, 30, END
+    },  
     { MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, RE, 6,
       DO, 6, RE, 6, MI, 6, FA, 6, MI, 12,
       FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, 
-      RE, 6, DO, 6, RE, 6, MI, 6, FA, 18, END },//坂道を軽快に下るUphill B
+      RE, 6, DO, 6, RE, 6, MI, 6, FA, 18, NO, 30, END
+    },
     { DO, 6, NO, 6, RE, 6, MI, 6, FA, 6, MI, 6, RE, 6,
       DO, 6, NO, 6, MI, 6, NO, 6, FA, 6, NO, 6, MI, 6, NO, 6, 
       DO, 6, RE, 6, NO, 6, MI, 6, FA, 6, NO, 6, RE, 6, NO, 6, 
-      DO, 6, MI, 6, FA, 12, END },//でこぼこ道を走るUphill A
+      DO, 6, MI, 6, FA, 12, NO, 30, END
+    },
     { MI, 6, NO, 6, FA, 6, RE, 6, DO, 6, NO, 6, RE, 6, MI, 6,
       FA, 6, NO, 6, MI, 6, RE, 6, DO, 6, NO, 6, RE, 6, NO, 6, 
       MI, 6, NO, 6, FA, 6, RE, 6, DO, 6, NO, 6, RE, 6, MI, 6,
-      FA, 6, NO, 6, RE, 6, NO, 6, DO, 6, MI, 6, FA, 12, END },
-      //でこぼこ道を走るUphill B 
-
-    //9の音符  
-    { DO, 6, RE, 6, MI, 6, FA, 6, SO, 6, SO, 6, FA, 6, MI, 6, 
-      RE, 6, MI, 6, FA, 6, SO, 6, RA, 6, SI, 6, RA, 6, SO, 6, 
-      FA, 6, SO, 6, RA, 6, SO, 6, FA, 6, MI, 6, RE, 6, MI, 6, 
-      FA, 6, SO, 6, RA, 6, SI, 6, DO2, 12, END },//坂道を登るときUphill A 
-    { RE, 6, MI, 6, FA, 6, SO, 6, RA, 6, SI, 6, RA, 6, SO, 6,
-      FA, 6, MI, 6, RE, 6, MI, 6, FA, 6, SO, 6, RA, 6, SI, 6, 
-      DO2, 6, SI, 6, RA, 6, SO, 6, FA, 6, MI, 6, RE, 6, MI, 6, 
-      FA, 6, SO, 6, RA, 6, SI, 6, DO2, 12, END },//坂道を登るときUphill B 
-    { SI, 6, RA, 6, SO, 6, FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, 
-      MI, 6, FA, 6, SO, 6, RA, 6, SO, 6, FA, 6, MI, 12, MI, 6, 
-      SO, 6, RA, 6, SO, 6, FA, 6, MI, 6, RE, 6, MI, 6, FA, 6, 
-      SO, 6, RA, 6, SI, 6, RA, 6, SO, 6, FA, 12, END },//坂道を軽快に下るUphill A 
-    { RA, 6, SO, 6, FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, 
-      FA, 6, SO, 6, RA, 6, SO, 6, FA, 6, MI, 6, RE, 12, MI, 6, 
-      FA, 6, SO, 6, RA, 6, SI, 6, RA, 6, SO, 6, FA, 6, MI, 12, 
-      NO, 6, SO, 6, RA, 6, END },//坂道を軽快に下るUphill B 
-    { DO, 6, NO, 6, MI, 6, FA, 6, SO, 6, FA, 6, MI, 6, DO, 6,
-      NO, 6, SO, 6, FA, 6, RE, 6, DO, 6, NO, 6, MI, 6, SO, 6,
-      FA, 6, NO, 6, DO, 6, MI, 6, NO, 6, FA, 6, SO, 6, NO, 6, 
-      MI, 6, RE, 6, NO, 6, DO, 6, MI, 6, SO, 6, FA, 12, END},//でこぼこ道を走るUphill A 
-    { MI, 6, NO, 6, FA, 6, SO, 6, RA, 6, SO, 6, FA, 6, MI, 6, 
-      RE, 6, DO, 6, NO, 6, RE, 6, MI, 6, FA, 6, SO, 6, FA, 6, 
-      NO, 6, MI, 6, SO, 6, NO, 6, RA, 6, SO, 6, FA, 6, MI, 6, 
-      RE, 6, NO, 6, DO, 6, RE, 6, MI, 6, FA, 12, END }//でこぼこ道を走るUphill B
+      FA, 6, NO, 6, RE, 6, NO, 6, DO, 6, MI, 6, FA, 12, NO, 30, END
+    },
+    { NO, 100, END }
 } ;
-// 関数プロトタイプ宣言
-void initializeAcceleSensor () ;
+
+int orderCount = 50 ;
+int order[] = {
+     0, 0, 0, 0, 6, 0, 0, 0, 0, 6, 
+     1, 1, 1, 1, 6, 1, 1, 1, 1, 6, 
+     2, 2, 2, 2, 6, 2, 2, 2, 2, 6,
+     3, 3, 3, 3, 6, 3, 3, 3, 3, 6,
+     4, 4, 4, 4, 6, 5, 5, 5, 5, 6 } ;
+double speed[] = {
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0
+} ;
+
+int accMusic = 0 ;
+int upMusic = 0 ;
+int downMusic = 0 ;
+int selectMusic = 0 ;
+
+//music functions
 void initializeNote () ;
+void initializeAcceleSensor () ;
+void getHeight ( double height ) ;
+void getVibration ( double level ) ;
+int playMusic ( int id, double ts ) ;
 void timer100 () ;
 void timer500 () ;
 void timer1000 () ;
 void timer5000 () ;
 void timer10000 () ;
 void timer30000 () ;
-void getVibration ( double level ) ;
-void playMusic ( int id, int nt ) ;
-int accMusic = 0 ;
-int updownMusic = 0 ;
 
 void setup ()
 {
-    Serial.begin(115200);
+    Serial.begin ( 9600 );
     //加速度センサー初期化
     initializeAcceleSensor () ;
     //使用するすべてのピンを出力モードに設定
@@ -124,6 +123,35 @@ void loop ()
     timer30000 () ;
 }
 
+void getHeight ( double height )
+{
+    static double   oldHeight = -1.0 ;
+
+    if ( oldHeight < 0.0 )
+    {
+        oldHeight = GPSHeight ;
+    }
+    if ( GPSHeight - oldHeight > height )
+    {
+        upMusic = 1 ;
+        selectMusic = rand () % 2 ;
+        Serial.print ( "Up Music Start" ) ; 
+    }
+    else if ( GPSHeight - oldHeight < -height )
+    {
+        downMusic = 1 ;
+        selectMusic = rand () % 2 ; 
+        Serial.print ( "Up Music Start" ) ; 
+    }
+    else
+    {
+        upMusic = 0 ;
+        downMusic = 0 ;
+    }
+    oldHeight = GPSHeight ;
+}
+
+
 void getVibration ( double level )
 {
     double  acc ;
@@ -136,7 +164,7 @@ void getVibration ( double level )
     {
         oldAcc = acc ;
     }
-    if ( fabs ( acc - oldAcc ) > 0.05 )
+    if ( fabs ( acc - oldAcc ) > level )
     {
         count ++ ;
     }
@@ -152,68 +180,71 @@ void getVibration ( double level )
     if ( count > 5 && accMusic == 0 )
     {
         accMusic = 1 ; 
-        Serial.print ( "Accel Music Start\n" ) ;       
+        Serial.print ( "Accel Music Start\n" ) ;
+        selectMusic = rand () % 2 ;       
     }
     oldAcc = acc ;    
 }
 
-void playMusic ( int id, int nt )
+int playMusic ( int id, double ts )
 {
     static int t = 0 ;
     static int tcount = 0 ;
 
     if ( music[id][t*2] == END )
     {
-        accMusic = 0 ;
-        updownMusic = 0 ;
         t = 0 ;
-        return ;
+        return 1 ;
     }
 
     if ( tcount == 0 )
     {
-        digitalWrite ( usePin[music[id][t*2]], LOW ) ;
-    }
-    if ( tcount == music[id][t*2+1] / 2 )
-    {
-        digitalWrite ( usePin[music[id][t*2]], HIGH ) ;        
-    }      
+        if ( music[id][t*2] != NO )
+        {
+            digitalWrite ( usePin[music[id][t*2]], LOW ) ;
+            delay ( ( int )( music[id][t*2+1] * 100.0 * ( 0.005 * ts ) ) ) ;
+            digitalWrite ( usePin[music[id][t*2]], HIGH ) ;
+        }
+    }   
     tcount ++ ;
 
-    if ( tcount >= music[id][t*2+1] )
+    if ( tcount >= ( int ) ( music[id][t*2+1] * ts ) )
     {
         tcount = 0 ;
         t ++ ;
     }
+    return 0 ;
 }
 
+
+/*
+ *  timer func 0.1s
+ */
 void timer100 ()
 {
-    int currentTime = millis () ; //現在の経過時間を取得
+    int currentTime = millis () ;
     static int oldTime = 0 ;
-    static int nt = 0 ; 
+    static int id = 0 ;
 
     if ( oldTime == 0 )
     {
         oldTime = currentTime ;
-        nt = 0 ;
     }
             
     if ( currentTime - oldTime > 100 )
     {
-        if ( accMusic == 1 )
+        if ( playMusic ( order[id], speed[id] ) == 1 )
         {
-            playMusic ( 0, nt ) ;
-        }
-        if ( updownMusic == 1 )
-        {
-            playMusic ( 1, nt ) ;
+            id ++ ;
+            id = id % orderCount ;
         }
         oldTime = currentTime ;
-        nt ++ ;
     }
 }
 
+/*
+ *  timer func 0.5s
+ */
 void timer500 ()
 {
     int currentTime = millis () ;
@@ -231,6 +262,9 @@ void timer500 ()
     }
 }
 
+/*
+ *  timer func 1s
+ */
 void timer1000 ()
 {
     int currentTime = millis () ;
@@ -248,6 +282,9 @@ void timer1000 ()
     }
 }
 
+/*
+ *  timer func 5s
+ */
 void timer5000 ()
 {
     int currentTime = millis () ;
@@ -260,11 +297,13 @@ void timer5000 ()
             
     if ( currentTime - oldTime > 5000 )
     {
-
         oldTime = currentTime ;
     }
 }
 
+/*
+ *  timer func 10s
+ */
 void timer10000 ()
 {
     int currentTime = millis () ;
@@ -277,11 +316,15 @@ void timer10000 ()
             
     if ( currentTime - oldTime > 10000 )
     {
-
+        getHeight ( 0.5 ) ;
+        Serial.print ( "Updown Music Start" ) ;
         oldTime = currentTime ;
     }
 }
 
+/*
+ *  timer func 30s
+ */
 void timer30000 ()
 {
     int currentTime = millis () ;
@@ -294,9 +337,6 @@ void timer30000 ()
             
     if ( currentTime - oldTime > 30000 )
     {
-        updownMusic = 1 ;
-        Serial.print ( "Updown Music Start" ) ;
         oldTime = currentTime ;
     }
 }
-
