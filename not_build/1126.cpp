@@ -1,24 +1,5 @@
-//=====================================================================
-//  Leafony Platform sample sketch
-//     Application  : BLE 4-Sensers demo
-//     Processor    : STM32L452RE (Nucleo-64/Nucleo L452RE)
-//     Arduino IDE  : 1.8.13
-//     STM32 Core   : Ver1.9.0
-//
-//     Leaf configuration
-//       (1) AC02 BLE Sugar
-//       (2) AI01 4-Sensors
-//       (3) AP03 STM32 MCU
-//       (4) AZ01 USB
-//
-//    (c) 2021 LEAFONY SYSTEMS Co., Ltd
-//    Released under the MIT license
-//    https://opensource.org/licenses/MIT
-//
-//      Rev.00 2021/04/01 First release
-//=====================================================================
 //---------------------------------------------------------------------
-// difinition
+// 定義
 //---------------------------------------------------------------------
 #include <SoftwareSerial.h>                 // Software UART
 #include <Wire.h>                           // I2C
@@ -28,8 +9,11 @@
 #include <ClosedCube_OPT3001.h>             // Ambient Light Sensor
 #include "TBGLib.h"                         // BLE
 #include <ST7032.h>                         // LCD
+#include <TinyGPSPlus.h>
+#include <vector>
 
 // --- 関数プロトタイプ宣言 ---
+// BLE functions
 void i2c_write_byte(uint8_t addr, uint8_t reg, uint8_t data);
 void setupPort();
 void setupSensor();
@@ -50,88 +34,76 @@ void my_evt_le_connection_closed(const struct ble_msg_le_connection_closed_evt_t
 void my_evt_system_boot(const struct ble_msg_system_boot_evt_t *msg);
 void my_evt_system_awake(void);
 void my_rsp_system_get_bt_address(const struct ble_msg_system_get_bt_address_rsp_t *msg);
+//music functions
+void initializeNote () ;
+void initializeAcceleSensor () ;
+void getHeight ( double height ) ;
+void getVibration ( double level ) ;
+int playMusic ( int id, double ts ) ;
+void timer100 () ;
+void timer500 () ;
+void timer1000 () ;
+void timer5000 () ;
+void timer10000 () ;
+void timer30000 () ;
+
+
 
 
 //===============================================
-// BLE Unique Name (Local device name)
-// Up to 16 characters (ASCII code)
+//BLE一意の名前（ローカルデバイス名）
+//最大16文字（ASCIIコード）
 //===============================================
 //                     |1234567890123456|
 //ローカルデバイス名を設定
 String strDeviceName = "Leafony_AC02";
 
 //===============================================
-// Output to serial monitor
-//      #define SERIAL_MONITOR = With output
-//    //#define SERIAL_MONITOR = Without output (Comment out)
+// シリアルモニターに出力
+//      #define SERIAL_MONITOR = 出力あり
+//    //#define SERIAL_MONITOR = 出力なし（コメントアウト）
 //===============================================
 // 事前定義存在定義(#ifdef)で用いる
 //#define ← マクロを定義？
 #define SERIAL_MONITOR
 
 //===============================================
-// Debug output to serial monitor
-//      #define DEBUG = With output
-//    //#define DEBUG = Without output (Comment out)
+// デバッグ出力をシリアルモニターに出力
+//      #define DEBUG = 出力あり
+//    //#define DEBUG = 出力なし（コメントアウト）
 //===============================================
 //#define DEBUG
 
 //-----------------------------------------------
-// Setting the transmission interval
-//  SEND_INTERVAL  :transmission interval (Set the interval for sending sensor data in 1 second increments.)
+// 送信間隔の設定
+//  SEND_INTERVAL  :送信間隔（センサーデータの送信間隔を1秒単位で設定します。）
 //-----------------------------------------------
 //送信間隔を1秒単位で設定するマクロ
 //1秒に1回送信
 #define SEND_INTERVAL   (1)                 // 1s
 
 //-----------------------------------------------
-// IO Pin List
-//-----------------------------------------------
-//  D0  PA3  (UART2_RXD)
-//  D1  PA2  (UART2_TXD)
-//  D2  PC7  (INT0)
-//  D3  PB3  (INT1)
-//  D4  PB5
-//  D5  PB4
-//  D6  PA8
-//  D7  PB12
-//  D8  PA9  (UART1_TX)
-//  D9  PA10 (UART1_RX)
-//  D10 PB6  (SS)
-//  D11 PA7  (MOSI)
-//  D12 PA6  (MISO)
-//  D13 PA5  (SCK)
-//  D14 PB9  (SDA)
-//  D15 PB8  (SCL)
-//  A0  PA4
-//  A1  PA0  (UART4_TX)
-//  A2  PA1  (UART4_RX)
-//  A3  PB0
-//  A4  PC1
-//  A5  PC0
-
-//-----------------------------------------------
-// IO pin name definition
-// Define it according to the leaf to be connected.
+// IOピン名定義
+// 接続するリーフに合わせて定義してください。
 //-----------------------------------------------
 #define BLE_WAKEUP      PB12                // D7   PB12
 #define BLE_RX          PA1                 // [A2] PA1
 #define BLE_TX          PA0                 // [A1] PA0
 
 //-----------------------------------------------
-// Define constants to be used in the program
+// 定数定義
 //-----------------------------------------------
 //------------------------------
-// I2C address
+// I2Cアドレス
 //------------------------------
-#define LIS2DH_ADDRESS          0x19        // Accelerometer (SD0/SA0 pin = VCC)
-#define OPT3001_ADDRESS         0x45        // Ambient Light Sensor (ADDR pin = VCC)
-#define LCD_I2C_EXPANDER_ADDR   0x1A        // LCD I2C Expander
-#define BATT_ADC_ADDR           0x50        // Battery ADC
+#define LIS2DH_ADDRESS          0x19        // 加速度センサー (SD0/SA0ピン = VCC)
+#define OPT3001_ADDRESS         0x45        // 環境光センサー (ADDRピン = VCC)
+#define LCD_I2C_EXPANDER_ADDR   0x1A        // LCD I2Cエキスパンダー
+#define BATT_ADC_ADDR           0x50        // バッテリーADC
 
 //------------------------------
-// Loop interval
-// Timer interrupt interval (ms)
+// ループ間隔
+// タイマー割り込み間隔（ミリ秒）
 //------------------------------
 #define LOOP_INTERVAL 125000                // 125000us = 125ms interval
 
@@ -148,15 +120,136 @@ String strDeviceName = "Leafony_AC02";
 //---------------------------------------------------------------------
 // object
 //---------------------------------------------------------------------
+
+// ------------------------------
+// GPS
+// ------------------------------
+TinyGPSPlus gps;
+SoftwareSerial gpsSerial(8, 9); // RX, TX
+void displayInfo();
+void trim(char * data); // 文字列トリム関数のプロトタイプ
+unsigned long previousMillis = 0;  // 前回実行した時刻
+const unsigned long interval = 5000; // 5秒（5000ミリ秒）
+// GPSデータ格納用構造体（String はメモリを圧迫するため数値型で保持）
+struct GPSData {
+  char latitude[20];  //緯度
+  char longitude[20]; //経度
+  char setDate[20]; // 日付文字列 (null 終端する) — 19文字 + 終端
+};
+
+struct latlngData {
+  double latitude;  //緯度
+  double longitude; //経度
+};
+struct DateData
+{
+  /* data */
+  uint16_t year; // 西暦
+  uint8_t month;
+  uint8_t day;
+  uint8_t hour;
+  uint8_t minute;
+  uint8_t second;
+};
+int latLen = 9; // 緯度文字列長
+int lngLen = 10; // 経度文字列長
+char latBuf[20]; // 緯度フォーマット用バッファ
+char lngBuf[20]; // 経度フォーマット用バッファ
+char dateBuf[20]; // 日付フォーマット用バッファ
+// 最新の GPS データ
+latlngData latlng;
+DateData Date;
+GPSData latestGPS;
+// 可変長配列（ログ）: std::vector を使用して順次 push_back する
+std::vector<GPSData> gpsLog;
+int gpscounter = 0;
+int counter = 0;
+
+
+// ------------------------------
+// music
+// ------------------------------
+#define LIS3DH_ADDRESS 0x19
+Adafruit_LIS3DH accel = Adafruit_LIS3DH ();
+
+double GPSHeight = 0.0 ;  
+int usePinCount = 8 ;
+int usePin[] = { D0, D4, D6, D7, D8, D10, D11, D12 } ; 
+int DO = 0 ;
+int RE = 1 ;
+int MI = 2 ;
+int FA = 3 ;
+int SO = 4 ;
+int RA = 5 ;
+int SI = 6 ;
+int DO2 = 7 ;
+int NO = 8 ;
+int END = 9 ;
+
+int musicMode = 0 ;
+int music[][256] = {
+    { DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, FA, 6, MI, 6, RE, 6, 
+      DO, 6, RE, 6, MI, 6, FA, 6, FA, 12, 
+      DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, FA, 6, MI, 6, RE, 6, 
+      DO, 6, RE, 6, MI, 6, FA, 6, FA, 18, NO, 30, END
+    },
+    { RE, 6, MI, 6, FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, 
+      FA, 6, MI, 6, RE, 6, MI, 6, FA, 12, 
+      MI, 6, FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 6, 
+      MI, 6, FA, 6, MI, 6, RE, 6, FA, 18, NO, 30, END
+    },
+    { FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, 
+      FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 12, 
+      MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, RE, 6, 
+      DO, 6, RE, 6, MI, 6, FA, 6, MI, 12, NO, 30, END
+    },  
+    { MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, RE, 6,
+      DO, 6, RE, 6, MI, 6, FA, 6, MI, 12,
+      FA, 6, MI, 6, RE, 6, DO, 6, RE, 6, MI, 6, FA, 6, MI, 6, 
+      RE, 6, DO, 6, RE, 6, MI, 6, FA, 18, NO, 30, END
+    },
+    { DO, 6, NO, 6, RE, 6, MI, 6, FA, 6, MI, 6, RE, 6,
+      DO, 6, NO, 6, MI, 6, NO, 6, FA, 6, NO, 6, MI, 6, NO, 6, 
+      DO, 6, RE, 6, NO, 6, MI, 6, FA, 6, NO, 6, RE, 6, NO, 6, 
+      DO, 6, MI, 6, FA, 12, NO, 30, END
+    },
+    { MI, 6, NO, 6, FA, 6, RE, 6, DO, 6, NO, 6, RE, 6, MI, 6,
+      FA, 6, NO, 6, MI, 6, RE, 6, DO, 6, NO, 6, RE, 6, NO, 6, 
+      MI, 6, NO, 6, FA, 6, RE, 6, DO, 6, NO, 6, RE, 6, MI, 6,
+      FA, 6, NO, 6, RE, 6, NO, 6, DO, 6, MI, 6, FA, 12, NO, 30, END
+    },
+    { NO, 100, END }
+} ;
+
+int orderCount = 50 ;
+int order[] = {
+     0, 0, 0, 0, 6, 0, 0, 0, 0, 6, 
+     1, 1, 1, 1, 6, 1, 1, 1, 1, 6, 
+     2, 2, 2, 2, 6, 2, 2, 2, 2, 6,
+     3, 3, 3, 3, 6, 3, 3, 3, 3, 6,
+     4, 4, 4, 4, 6, 5, 5, 5, 5, 6 } ;
+double speed[] = {
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0
+} ;
+
+int accMusic = 0 ;
+int upMusic = 0 ;
+int downMusic = 0 ;
+int selectMusic = 0 ;
+
 //------------------------------
 // LCD
 //------------------------------
-  ST7032 lcd;
+ST7032 lcd;
 
 //------------------------------
 // Sensor
 //------------------------------
-Adafruit_LIS3DH accel = Adafruit_LIS3DH();
+// Adafruit_LIS3DH accel = Adafruit_LIS3DH();
 ClosedCube_OPT3001 light;
 
 //------------------------------
@@ -166,7 +259,7 @@ HardwareSerial Serialble(BLE_RX, BLE_TX);
 BGLib ble112((HardwareSerial *)&Serialble, 0, 0 );
 
 //---------------------------------------------------------------------
-// Define variables to be used in the program
+// プログラムで使用する変数を定義する
 //---------------------------------------------------------------------
 //------------------------------
 // LCD
@@ -247,58 +340,106 @@ float dataBatt = 0;
 // setup
 //=====================================================================
 void setup(){
-//  delay(1000);
 
-  Serial.begin(115200);     // UART 115200bps
+  Serial.begin(9600);     // UART 9600bps
+  gpsSerial.begin(9600);
   Wire.begin();             // I2C 100kHz
 //SERIAL_MONITORがあるかどうかで分岐
-#ifdef SERIAL_MONITOR
-    Serial.println(F(""));
-    Serial.println(F("========================================="));
-    Serial.println(F("setup start"));
-#endif
 
-  if (dispLCD==1){
-    i2c_write_byte(LCD_I2C_EXPANDER_ADDR, 0x03, 0xFE);
-    i2c_write_byte(LCD_I2C_EXPANDER_ADDR, 0x01, 0x01);      // LCD power ON
-    // LCD設定
-    lcd.begin(8, 2);
-    lcd.setContrast(30);
-    lcd.clear();
-    lcd.print("NOW");
-    lcd.setCursor(0, 1);
-    lcd.print("BOOTING!");
-  }
 
+  delay(10000);
+  //ダミーデータ作成
+  //   /* 琵琶湖 */
+  // strcpy(latestGPS.setDate, "20251763000000");
+  // strcpy(latestGPS.latitude, "35.015528");
+  // strcpy(latestGPS.longitude, "135.862333");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000010");
+  // strcpy(latestGPS.latitude, "35.015528");
+  // strcpy(latestGPS.longitude, "135.862333");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000020");
+  // strcpy(latestGPS.latitude, "35.006414");
+  // strcpy(latestGPS.longitude, "135.882016");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000030");
+  // strcpy(latestGPS.latitude, "34.997300");
+  // strcpy(latestGPS.longitude, "135.901700");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000040");
+  // strcpy(latestGPS.latitude, "34.985177");
+  // strcpy(latestGPS.longitude, "135.903947");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000050");
+  // strcpy(latestGPS.latitude, "34.985177");
+  // strcpy(latestGPS.longitude, "135.903947");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000060");
+  // strcpy(latestGPS.latitude, "34.973054");
+  // strcpy(latestGPS.longitude, "135.906195");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000070");
+  // strcpy(latestGPS.latitude, "34.973054");
+  // strcpy(latestGPS.longitude, "135.906195");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000080");
+  // strcpy(latestGPS.latitude, "35.023332");
+  // strcpy(latestGPS.longitude, "135.920877");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000090");
+  // strcpy(latestGPS.latitude, "35.073610");
+  // strcpy(latestGPS.longitude, "135.935560");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000100");
+  // strcpy(latestGPS.latitude, "35.073610");
+  // strcpy(latestGPS.longitude, "135.935560");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000110");
+  // strcpy(latestGPS.latitude, "35.097738");
+  // strcpy(latestGPS.longitude, "135.935275");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000120");
+  // strcpy(latestGPS.latitude, "35.121866");
+  // strcpy(latestGPS.longitude, "135.934991");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000130");
+  // strcpy(latestGPS.latitude, "35.121866");
+  // strcpy(latestGPS.longitude, "135.934991");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000140");
+  // strcpy(latestGPS.latitude, "35.068697");
+  // strcpy(latestGPS.longitude, "135.898662");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000150");
+  // strcpy(latestGPS.latitude, "35.015528");
+  // strcpy(latestGPS.longitude, "135.862333");
+  // gpsLog.push_back(latestGPS);
+
+  initializeNote () ;
+  
   setupPort();
+  Serial.println("SetupPort");
   setupSensor();
+  Serial.println("SetupSensor");
   setupBLE();
+  Serial.println("SetupBLE");
 
   ble112.ble_cmd_system_get_bt_address();
   while (ble112.checkActivity(1000));
 
   setupTimerInt();                            // Timer inverval start
-
-#ifdef SERIAL_MONITOR
-    Serial.println(F(""));
-    Serial.println("=========================================");
-    Serial.println(F("loop start"));
-    Serial.println(F(""));
-#endif
 }
 
 //-----------------------------------------------
-// IO pin input/output settings
-// Configure the settings according to the leaf to be connected.
+// IO ピンの入出力設定
 //-----------------------------------------------
 void setupPort(){
+  //BLE_WAKEUP(PB12)を出力ピンとして設定
   pinMode(BLE_WAKEUP, OUTPUT);           // [D7] : BLE Wakeup/Sleep
+  //その出力ピン(BLE_WAKEUP)をHIGHに設定してBLEモジュールを起動
   digitalWrite(BLE_WAKEUP, HIGH);        // BLE Wakeup
 }
 
-//=====================================================================
-// Interrupt
-//=====================================================================
 //-----------------------------------------------
 // Timer interrupt (interval=125ms, int=overflow)
 // Timer interrupt setting for main loop
@@ -322,10 +463,10 @@ void setupSensor(){
   // LIS2DH (accelerometer)
   //----------------------------
   accel.begin(LIS2DH_ADDRESS);
-
   accel.setClick(0, 0);                      // Disable Interrupt
   accel.setRange(LIS3DH_RANGE_2_G);          // Full scale +/- 2G
   accel.setDataRate(LIS3DH_DATARATE_10_HZ);  // Data rate = 10Hz
+  delay ( 100 ) ;
 
   //----------------------------
   // HTS221 (temperature / humidity)
@@ -356,32 +497,339 @@ void setupSensor(){
     errorConfig = light.writeConfig(newConfig);     // retry
   }
 }
-//====================================================================
-// Loop
-//=====================================================================
+
+// music functions
+void initializeNote ()
+{
+  Serial.println("Initialize Note");
+    int     i ;
+
+    for ( i = 0 ; i < usePinCount ; i ++ )
+    {
+        pinMode ( usePin[i], OUTPUT ) ; //使用するピンを出力モードに設定
+        digitalWrite ( usePin[i], HIGH ) ;  //ピンをHIGHに設定（おはようモード）
+    } 
+    delay ( 100 ) ;       
+}
+
 //---------------------------------------------------------------------
 // Main loop
 //---------------------------------------------------------------------
 void loop() {
-  //-----------------------------------------------------
-  // Timer interval Loop once in 125ms
-  //-----------------------------------------------------
-  if (bInterval == true){
-     bInterval = false;
+  // Serial.println("Goodmorning");
+  timer100 () ;
+  timer1000 () ;
+  timer30000 () ;
+  
+  // GPSデータの取得と表示
+  // if(bBLEsendData == false){
+    // Serial.println("GPS Read");
+    while (gpsSerial.available() > 0){
+        if (gps.encode(gpsSerial.read())){
+        displayInfo();
+        }
+    }
+  // }
 
-    //--------------------------------------------
+  // bIntervalがtrueかつbBLEsendDataがtrueのときにデータ送信を実行
+  if (bInterval == true && bBLEsendData == true){
+     bInterval = false;
+    //これをなくしたら動かくなるため必要
+    //おそらくevent1sがtrueになるまで待っている状態になるため  
     loopCounter();                    // loop counter
-    //--------------------------------------------
-    // Run once in 1s
-    //--------------------------------------------
     if(event1s == true){
       event1s = false;
+      Serial.println("entry sensor");
       loopSensor();                   // sensor read
+      //ここでデータを送信する
       bt_sendData();                  // Data send
+      Serial.println("send data");
     }
   }
   loopBleRcv();
 }
+
+void getHeight ( double height )
+{
+    static double   oldHeight = -1.0 ;
+
+    if ( oldHeight < 0.0 )
+    {
+        oldHeight = GPSHeight ;
+    }
+    if ( GPSHeight - oldHeight > height )
+    {
+        upMusic = 1 ;
+        selectMusic = rand () % 2 ;
+        Serial.print ( "Up Music Start" ) ; 
+    }
+    else if ( GPSHeight - oldHeight < -height )
+    {
+        downMusic = 1 ;
+        selectMusic = rand () % 2 ; 
+        Serial.print ( "Up Music Start" ) ; 
+    }
+    else
+    {
+        upMusic = 0 ;
+        downMusic = 0 ;
+    }
+    oldHeight = GPSHeight ;
+}
+
+void getVibration ( double level )
+{
+    double  acc ;
+    static int count = 0 ;
+    static double oldAcc = -1.0 ;
+
+    accel.read () ;
+    acc = sqrt ( accel.x_g * accel.x_g + accel.y_g * accel.y_g + accel.z_g * accel.z_g ) ; 
+    if ( oldAcc < 0.0 )
+    {
+        oldAcc = acc ;
+    }
+    if ( fabs ( acc - oldAcc ) > level )
+    {
+        count ++ ;
+    }
+    else
+    {
+        count = 0 ;
+        if ( accMusic == 1 )
+        {
+            accMusic = 0 ;
+            Serial.print ( "Accel Music Stop\n" ) ;             
+        }
+    }
+    if ( count > 5 && accMusic == 0 )
+    {
+        accMusic = 1 ; 
+        Serial.print ( "Accel Music Start\n" ) ;
+        selectMusic = rand () % 2 ;       
+    }
+    oldAcc = acc ;    
+}
+
+int playMusic ( int id, double ts )
+{
+    static int t = 0 ;
+    static int tcount = 0 ;
+
+    if ( music[id][t*2] == END )
+    {
+        t = 0 ;
+        return 1 ;
+    }
+
+    if ( tcount == 0 )
+    {
+        if ( music[id][t*2] != NO )
+        {
+            digitalWrite ( usePin[music[id][t*2]], LOW ) ;
+            delay ( ( int )( music[id][t*2+1] * 100.0 * ( 0.005 * ts ) ) ) ;
+            digitalWrite ( usePin[music[id][t*2]], HIGH ) ;
+        }
+    }   
+    tcount ++ ;
+
+    if ( tcount >= ( int ) ( music[id][t*2+1] * ts ) )
+    {
+        tcount = 0 ;
+        t ++ ;
+    }
+    return 0 ;
+}
+
+/*
+ *  timer func 0.1s
+ */
+void timer100 ()
+{
+    int currentTime = millis () ;
+    static int oldTime = 0 ;
+    static int id = 0 ;
+
+    if ( oldTime == 0 )
+    {
+        oldTime = currentTime ;
+    }
+            
+    if ( currentTime - oldTime > 100 )
+    {
+        if ( playMusic ( order[id], speed[id] ) == 1 )
+        {
+            id ++ ;
+            id = id % orderCount ;
+        }
+        oldTime = currentTime ;
+    }
+}
+
+/*
+ *  timer func 0.5s
+ */
+void timer500 ()
+{
+    int currentTime = millis () ;
+    static int oldTime = 0 ;
+
+    if ( oldTime == 0 )
+    {
+        oldTime = currentTime ;
+    }
+            
+    if ( currentTime - oldTime > 500 )
+    {
+
+        oldTime = currentTime ;
+    }
+}
+
+/*
+ *  timer func 1s
+ */
+void timer1000 ()
+{
+    int currentTime = millis () ;
+    static int oldTime = 0 ;
+
+    if ( oldTime == 0 )
+    {
+        oldTime = currentTime ;
+    }
+            
+    if ( currentTime - oldTime > 1000 )
+    {
+        getVibration ( 0.05 ) ;
+        oldTime = currentTime ;
+    }
+}
+
+/*
+ *  timer func 5s
+ */
+void timer5000 ()
+{
+    int currentTime = millis () ;
+    static int oldTime = 0 ;
+
+    if ( oldTime == 0 )
+    {
+        oldTime = currentTime ;
+    }
+            
+    if ( currentTime - oldTime > 5000 )
+    {
+        oldTime = currentTime ;
+    }
+}
+
+/*
+ *  timer func 10s
+ */
+void timer10000 ()
+{
+    int currentTime = millis () ;
+    static int oldTime = 0 ;
+
+    if ( oldTime == 0 )
+    {
+        oldTime = currentTime ;
+    }
+            
+    if ( currentTime - oldTime > 10000 )
+    {
+        getHeight ( 0.5 ) ;
+        Serial.print ( "Updown Music Start" ) ;
+        oldTime = currentTime ;
+    }
+}
+
+/*
+ *  timer func 30s
+ */
+void timer30000 ()
+{
+    int currentTime = millis () ;
+    static int oldTime = 0 ;
+
+    if ( oldTime == 0 )
+    {
+        oldTime = currentTime ;
+    }
+            
+    if ( currentTime - oldTime > 30000 )
+    {
+        oldTime = currentTime ;
+    }
+}
+
+void displayInfo() {
+  
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis; // 時刻を更新
+  // GPS の値を構造体に格納（数値で保持）
+    latlng.latitude = gps.location.lat();
+    latlng.longitude = gps.location.lng();
+    Date.year = gps.date.year();
+    Date.month = gps.date.month();
+    Date.day = gps.date.day();
+    Date.hour = gps.time.hour();
+    Date.minute = gps.time.minute();
+    Date.second = gps.time.second();
+
+
+    // double 型の緯度経度を文字列に変換
+    dtostrf(latlng.latitude, latLen, 6, latBuf);
+    dtostrf(latlng.longitude, lngLen, 6, lngBuf);
+
+    // 緯度経度のバッファ内容をデバッグ出力
+    // Serial.println(latBuf);
+    // Serial.println(lngBuf);
+
+    // 日時をフォーマットしてバッファに格納（"YYYYMMDDHHMMSS"）
+    int n = snprintf(dateBuf, sizeof(dateBuf), "%04u%02u%02u%02u%02u%02u",
+      (unsigned)Date.year,
+      (unsigned)Date.month,
+      (unsigned)Date.day,
+      (unsigned)Date.hour,
+      (unsigned)Date.minute,
+      (unsigned)Date.second);
+
+      // Serial.println(dateBuf);
+
+    // latestGPSにchar型に変換した各データを格納
+    strncpy(latestGPS.latitude, latBuf, sizeof(latestGPS.latitude));
+    strncpy(latestGPS.longitude, lngBuf, sizeof(latestGPS.longitude));
+    strncpy(latestGPS.setDate, dateBuf, sizeof(latestGPS.setDate));
+    
+    // Serial.println(latestGPS.setDate);    
+
+    // トリム（空白削除）
+    //各データを整形
+    trim(latestGPS.latitude);
+    trim(latestGPS.longitude);
+    trim(latestGPS.setDate);
+    
+
+    // 可変長ログに追加
+    gpsLog.push_back(latestGPS);
+    
+    // 位置と日時を表示（位置は小数点6桁で表示）
+    // Serial.println(latestGPS.setDate);
+    Serial.println(gpsLog.back().setDate);
+    Serial.println(gpsLog.back().latitude);
+    Serial.println(gpsLog.back().longitude);
+    Serial.println(gpsLog.size()); // ログの件数表示
+    // gpscounter++;
+    // Serial.println(gpscounter);
+  }
+}
+
+
+
 //---------------------------------------------------------------------
 // Counter
 // Count the number of loops in the main loop and turn on sensor data acquisition
@@ -393,7 +841,7 @@ void loopCounter(){
   //--------------------
   // 1s period
   //--------------------
-  if (iLoop1s >=  8){                 // 125ms x 8 = 1s
+  if (iLoop1s >=  0){                 // 125ms x 8 = 1s   //現在はCTなし
     iLoop1s = 0;
 
     iSendCounter  += 1;
@@ -425,7 +873,6 @@ void loopSensor(){
     } else if (dataZ_g <= -1.0){
       dataZ_g = -1.00;
     }
-    //Z＿ｇが最初にとったｚ値と比較して超えているか超えていないのかを判定する
 
     dataTilt = acos(dataZ_g) / PI * 180;
 
@@ -519,7 +966,9 @@ void bt_sendData(){
   float value;
   char temp[7], humid[7], light[7], tilt[7],battVolt[7], pips[7];
   char sendData[40];
-  uint8 sendLen;
+  uint8 latLen = 9;
+  uint8 lngLen = 10;
+  uint8 sendLen = 14;
 
   //-------------------------
   // Convert sensor data to strings
@@ -644,35 +1093,54 @@ void bt_sendData(){
   //-------------------------
   // BLE Send Data
   //-------------------------
-  if( bBLEsendData == true ){                                 // BLE transmission
-    // Format for WebBluetooth application
-    sendLen = sprintf(sendData, "%04s,%04s,%04s,%04s,%04d\n", temp, humid, light, tilt, pips);
-    Serial.println(sendData);
-    // Send to BLE device
-    ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)sendData );
-    while (ble112.checkActivity(1000));
+  Serial.println("Hello");
+  if( counter < 1 ){                                 // BLE transmission
+    for (size_t i = 0; i < gpsLog.size(); i++){
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog[i].setDate);
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog[i].setDate);
+        // delay(1000);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, latLen, (const uint8 *)gpsLog[i].latitude );
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog[i].latitude);
+        // delay(1000);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, lngLen, (const uint8 *)gpsLog[i].longitude );
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog[i].longitude);
+
+    }
+
+
+    counter++;
+    Serial.println(counter);
   }
+  if (counter == 1){
+    strcpy(latestGPS.setDate, "00000000000000");
+    strcpy(latestGPS.latitude, "00.000000\0");
+    strcpy(latestGPS.longitude, "000.000000\0");
 
-  
+    trim(latestGPS.latitude);
+    trim(latestGPS.longitude);
+    trim(latestGPS.setDate);
 
-    //-------------------------
-    // Serial monitor display
-    //-------------------------
-#ifdef SERIAL_MONITOR
-// To display on multiple lines
-/*
-  Serial.println("--- sensor data ---");    
-  Serial.println("  Tmp[degC]     = " + String(dataTemp));
-  Serial.println("  Hum[%]        = " + String(dataHumid));
-  Serial.println("  Lum[lx]       = " + String(dataLight));
-  Serial.println("  Ang[arc deg]  = " + String(dataTilt));
-  Serial.println("  Bat[V]        = " + String(dataBatt));
-*/
-// To display on a single line
-  Serial.println("SensorData: Temp=" + String(temp) + ", Humid=" + String(humid) + ", Light=" + String(light) + ", Tilt=" + String(tilt) + ", Vbat=" + String(battVolt) + ", Dice=" + String(pips));
-#endif
+    gpsLog.push_back(latestGPS);
+
+    ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().setDate);
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog.back().setDate);
+        // delay(1000);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().latitude );
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog.back().latitude);
+        // delay(1000);
+        ble112.ble_cmd_gatt_server_send_characteristic_notification( 1, 0x000C, sendLen, (const uint8 *)gpsLog.back().longitude );
+        while (ble112.checkActivity(1000));
+        Serial.println(gpsLog.back().longitude);
+        counter++;
+        Serial.println(counter);
+  }
 }
-//====================================================================
+
 
 //==============================================
 // Interrupt
@@ -740,6 +1208,7 @@ unsigned char i2c_read_byte(int device_address, int reg_address){
 //  Setup BLE
 //-----------------------------------------------
 void setupBLE(){
+    Serial.println("Setup BLE");
     uint8  stLen;
     uint8 adv_data[31];
 
@@ -779,6 +1248,7 @@ void setupBLE(){
       delay(10);
     }
 
+    Serial.println("BLE System Booted");
     /* setting */
     /* [set Advertising Data] */
     uint8 ad_data[21] = {
@@ -791,29 +1261,29 @@ void setupBLE(){
 
     /*  */
     size_t lenStr2 = strDeviceName.length();
-
+    Serial.println("Device Name Length:");
     ad_data[3] = (lenStr2 + 1);                                 // field length
     uint8 u8Index;
     for( u8Index=0; u8Index < lenStr2; u8Index++){
       ad_data[5 + u8Index] = strDeviceName.charAt(u8Index);
     }
-
+    Serial.println("Device Name Set");
     /*   */
     stLen = (5 + lenStr2);
 
     //ble112.ble_cmd_le_gap_bt5_set_adv_data(0,SCAN_RSP_ADVERTISING_PACKETS, stLen, ad_data);
     ble112.ble_cmd_le_gap_set_adv_data(SCAN_RSP_ADVERTISING_PACKETS, stLen, ad_data);
-
+    Serial.println("BLE Advertising Data Setting...");
     while (ble112.checkActivity(1000));                         /* Receive check */
     delay(20);
-
+    Serial.println("BLE Advertising Data Set");
     /* interval_min :   40ms( =   64 x 0.625ms ) */
-    //ble112.ble_cmd_le_gap_bt5_set_adv_parameters( 0, 64, 1600, 7, 0 );/* [BGLIB] <handle> <interval_min> <interval_max> <channel_map> <report_scan>*/
+    //ble112.ble_cmd_le_gap_bt5_set_adv_parameters( 0, 64, 1600, 7, 0 );/* [BGLib] <handle> <interval_min> <interval_max> <channel_map> <report_scan>*/
     /* interval_max : 1000ms( = 1600 x 0.625ms ) */
     ble112.ble_cmd_le_gap_set_adv_parameters( 64, 1600, 7 );    /* [BGLIB] <interval_min> <interval_max> <channel_map> */
 
     while (ble112.checkActivity(1000));                         /* [BGLIB] Receive check */
-
+    Serial.println("BLE Advertising Parameters Set");
     /* start */
 //    ble112.ble_cmd_le_gap_bt5_set_mode(0,LE_GAP_USER_DATA,LE_GAP_UNDIRECTED_CONNECTABLE,0,2);
 //    ble112.ble_cmd_le_gap_set_mode(LE_GAP_USER_DATA,LE_GAP_UNDIRECTED_CONNECTABLE);
@@ -821,6 +1291,7 @@ void setupBLE(){
     ble112.ble_cmd_le_gap_start_advertising(0, LE_GAP_USER_DATA, LE_GAP_UNDIRECTED_CONNECTABLE);                // index = 0
     while (ble112.checkActivity(1000));                         /* Receive check */
     /*  */
+    Serial.println("BLE finisshed");
 }
 
 //-----------------------------------------
@@ -974,7 +1445,6 @@ void my_evt_le_connection_closed( const struct ble_msg_le_connection_closed_evt_
     bBLEsendData = false;
 }
 /*  */
-
 //-----------------------------------------------
 void my_evt_system_boot( const ble_msg_system_boot_evt_t *msg ){
     #ifdef DEBUG

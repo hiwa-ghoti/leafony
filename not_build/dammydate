@@ -1,0 +1,29 @@
+// strcpy(latestGPS.setDate, "20251114161718");
+  // strcpy(latestGPS.latitude, "35.698230");
+  // strcpy(latestGPS.longitude, "139.698121");
+  // gpsLog.push_back(latestGPS);
+
+  // strcpy(latestGPS.setDate, "20251114161718");
+  // strcpy(latestGPS.latitude, "35.698885");
+  // strcpy(latestGPS.longitude, "139.696797");
+  // gpsLog.push_back(latestGPS);
+
+  // strcpy(latestGPS.setDate, "20251114161718");
+  // strcpy(latestGPS.latitude, "35.699139");
+  // strcpy(latestGPS.longitude, "139.697982");
+  // gpsLog.push_back(latestGPS);
+
+  // strcpy(latestGPS.setDate, "20251114161718");
+  // strcpy(latestGPS.latitude, "35.695310");
+  // strcpy(latestGPS.longitude, "139.698920");
+  // gpsLog.push_back(latestGPS);
+
+  // strcpy(latestGPS.setDate, "20251114161718");
+  // strcpy(latestGPS.latitude, "35.697423");
+  // strcpy(latestGPS.longitude, "139.697881");
+  // gpsLog.push_back(latestGPS);
+
+  // strcpy(latestGPS.setDate, "20251114161718");
+  // strcpy(latestGPS.latitude, "35.698901");
+  // strcpy(latestGPS.longitude, "139.697404");
+  // gpsLog.push_back(latestGPS);
