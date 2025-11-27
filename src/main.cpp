@@ -349,35 +349,70 @@ void setup(){
 
   delay(10000);
   //ダミーデータ作成
-  //   /* code */
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.698230");
-  // strcpy(latestGPS.longitude, "139.698121");
+  //   /* 琵琶湖 */
+  // strcpy(latestGPS.setDate, "20251763000000");
+  // strcpy(latestGPS.latitude, "35.015528");
+  // strcpy(latestGPS.longitude, "135.862333");
   // gpsLog.push_back(latestGPS);
-
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.698885");
-  // strcpy(latestGPS.longitude, "139.696797");
+  // strcpy(latestGPS.setDate, "20251763000010");
+  // strcpy(latestGPS.latitude, "35.015528");
+  // strcpy(latestGPS.longitude, "135.862333");
   // gpsLog.push_back(latestGPS);
-
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.699139");
-  // strcpy(latestGPS.longitude, "139.697982");
+  // strcpy(latestGPS.setDate, "20251763000020");
+  // strcpy(latestGPS.latitude, "35.006414");
+  // strcpy(latestGPS.longitude, "135.882016");
   // gpsLog.push_back(latestGPS);
-
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.695310");
-  // strcpy(latestGPS.longitude, "139.698920");
+  // strcpy(latestGPS.setDate, "20251763000030");
+  // strcpy(latestGPS.latitude, "34.997300");
+  // strcpy(latestGPS.longitude, "135.901700");
   // gpsLog.push_back(latestGPS);
-
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.697423");
-  // strcpy(latestGPS.longitude, "139.697881");
+  // strcpy(latestGPS.setDate, "20251763000040");
+  // strcpy(latestGPS.latitude, "34.985177");
+  // strcpy(latestGPS.longitude, "135.903947");
   // gpsLog.push_back(latestGPS);
-
-  // strcpy(latestGPS.setDate, "20251114161718");
-  // strcpy(latestGPS.latitude, "35.698901");
-  // strcpy(latestGPS.longitude, "139.697404");
+  // strcpy(latestGPS.setDate, "20251763000050");
+  // strcpy(latestGPS.latitude, "34.985177");
+  // strcpy(latestGPS.longitude, "135.903947");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000060");
+  // strcpy(latestGPS.latitude, "34.973054");
+  // strcpy(latestGPS.longitude, "135.906195");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000070");
+  // strcpy(latestGPS.latitude, "34.973054");
+  // strcpy(latestGPS.longitude, "135.906195");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000080");
+  // strcpy(latestGPS.latitude, "35.023332");
+  // strcpy(latestGPS.longitude, "135.920877");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000090");
+  // strcpy(latestGPS.latitude, "35.073610");
+  // strcpy(latestGPS.longitude, "135.935560");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000100");
+  // strcpy(latestGPS.latitude, "35.073610");
+  // strcpy(latestGPS.longitude, "135.935560");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000110");
+  // strcpy(latestGPS.latitude, "35.097738");
+  // strcpy(latestGPS.longitude, "135.935275");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000120");
+  // strcpy(latestGPS.latitude, "35.121866");
+  // strcpy(latestGPS.longitude, "135.934991");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000130");
+  // strcpy(latestGPS.latitude, "35.121866");
+  // strcpy(latestGPS.longitude, "135.934991");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000140");
+  // strcpy(latestGPS.latitude, "35.068697");
+  // strcpy(latestGPS.longitude, "135.898662");
+  // gpsLog.push_back(latestGPS);
+  // strcpy(latestGPS.setDate, "20251763000150");
+  // strcpy(latestGPS.latitude, "35.015528");
+  // strcpy(latestGPS.longitude, "135.862333");
   // gpsLog.push_back(latestGPS);
 
   initializeNote () ;
@@ -481,13 +516,14 @@ void initializeNote ()
 // Main loop
 //---------------------------------------------------------------------
 void loop() {
-    Serial.println("Goodmorning");
+  // Serial.println("Goodmorning");
   timer100 () ;
   timer1000 () ;
   timer30000 () ;
   
   // GPSデータの取得と表示
   if(bBLEsendData == false){
+    // Serial.println("GPS Read");
     while (gpsSerial.available() > 0){
         if (gps.encode(gpsSerial.read())){
         displayInfo();
@@ -1409,7 +1445,6 @@ void my_evt_le_connection_closed( const struct ble_msg_le_connection_closed_evt_
     bBLEsendData = false;
 }
 /*  */
-
 //-----------------------------------------------
 void my_evt_system_boot( const ble_msg_system_boot_evt_t *msg ){
     #ifdef DEBUG
